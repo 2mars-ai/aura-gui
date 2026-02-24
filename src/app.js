@@ -836,8 +836,7 @@ function initMultiSigTab() {
     hideTabEl("msig-create-result"); hideTabEl("msig-create-error");
     if (!State.wallet) { showTabError("msig-create-error", "No wallet loaded"); return; }
     var lines = document.getElementById("msig-signers").value
-      .trim().split("
-").map(function(s) { return s.trim(); }).filter(Boolean);
+      .trim().split("\n").map(function(s) { return s.trim(); }).filter(Boolean);
     var threshold = parseInt(document.getElementById("msig-threshold").value);
     var fee = parseFloat(document.getElementById("msig-create-fee").value) || 0.001;
     if (lines.length < 2) { showTabError("msig-create-error", "Need at least 2 signers"); return; }
