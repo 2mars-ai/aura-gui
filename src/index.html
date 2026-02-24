@@ -30,6 +30,9 @@
       <button class="nav-btn" data-tab="send">Send</button>
       <button class="nav-btn" data-tab="explorer">Explorer</button>
       <button class="nav-btn" data-tab="validators">Validators</button>
+      <button class="nav-btn" data-tab="staking">Staking</button>
+      <button class="nav-btn" data-tab="multisig">Multi-sig</button>
+      <button class="nav-btn" data-tab="timelock">Time-lock</button>
     </nav>
 
     <!-- Content area -->
@@ -250,6 +253,163 @@
             </thead>
             <tbody id="validators-tbody"></tbody>
           </table>
+        </div>
+      </section>
+
+
+      <!-- ===== STAKING TAB ===== -->
+      <section id="tab-staking" class="tab">
+        <h2>Staking</h2>
+
+        <div id="staking-no-wallet" class="card">
+          <div class="error-msg">Load a wallet in the Wallet tab first.</div>
+        </div>
+
+        <div id="staking-form" style="display:none;">
+          <div class="card">
+            <h3>Stake AURA (Become Validator)</h3>
+            <p class="muted">Minimum stake: 1,000 AURA. Staking makes your address a validator eligible to produce blocks.</p>
+            <div class="form-grid">
+              <label>Amount (AURA)</label>
+              <input id="stake-amount" type="number" min="1000" step="0.00000001" placeholder="1000.00000000" />
+              <label>Fee (AURA)</label>
+              <input id="stake-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+            </div>
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-primary" id="btn-stake">Stake</button>
+              <button class="btn btn-danger" id="btn-unstake">Unstake All</button>
+            </div>
+            <div id="stake-result" class="code-block" style="display:none;"></div>
+            <div id="stake-error" class="error-msg" style="display:none;"></div>
+          </div>
+
+          <div class="card">
+            <h3>Delegate to Validator</h3>
+            <p class="muted">Delegate your AURA to an existing validator to earn staking rewards.</p>
+            <div class="form-grid">
+              <label>Validator Address</label>
+              <input id="delegate-to" type="text" placeholder="aura1..." />
+              <label>Amount (AURA)</label>
+              <input id="delegate-amount" type="number" min="0" step="0.00000001" placeholder="100.00000000" />
+              <label>Fee (AURA)</label>
+              <input id="delegate-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+            </div>
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-primary" id="btn-delegate">Delegate</button>
+              <button class="btn btn-danger" id="btn-undelegate">Undelegate</button>
+            </div>
+            <div id="delegate-result" class="code-block" style="display:none;"></div>
+            <div id="delegate-error" class="error-msg" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== MULTI-SIG TAB ===== -->
+      <section id="tab-multisig" class="tab">
+        <h2>Multi-Sig Wallets</h2>
+
+        <div class="card">
+          <h3>Create Multi-Sig Wallet</h3>
+          <p class="muted">Create an N-of-M wallet that requires multiple signatures to execute transactions.</p>
+          <div class="form-grid">
+            <label>Signers (one address per line)</label>
+            <textarea id="msig-signers" rows="4" placeholder="aura1address1&#10;aura1address2&#10;aura1address3"></textarea>
+            <label>Required Signatures (N of M)</label>
+            <input id="msig-threshold" type="number" min="1" value="2" />
+            <label>Fee (AURA)</label>
+            <input id="msig-create-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button class="btn btn-primary" id="btn-msig-create">Create Multi-Sig Wallet</button>
+          </div>
+          <div id="msig-create-result" class="code-block" style="display:none;"></div>
+          <div id="msig-create-error" class="error-msg" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Propose Transaction</h3>
+          <p class="muted">Propose a transaction from a multi-sig wallet. Other signers must approve before it executes.</p>
+          <div class="form-grid">
+            <label>Multi-sig Wallet Address</label>
+            <input id="msig-from" type="text" placeholder="aura1multisig..." />
+            <label>To Address</label>
+            <input id="msig-to" type="text" placeholder="aura1..." />
+            <label>Amount (AURA)</label>
+            <input id="msig-amount" type="number" min="0" step="0.00000001" placeholder="0.00000000" />
+            <label>Fee (AURA)</label>
+            <input id="msig-propose-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button class="btn btn-primary" id="btn-msig-propose">Propose</button>
+          </div>
+          <div id="msig-propose-result" class="code-block" style="display:none;"></div>
+          <div id="msig-propose-error" class="error-msg" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Approve Transaction</h3>
+          <div class="form-grid">
+            <label>Pending TX ID</label>
+            <input id="msig-approve-txid" type="text" placeholder="transaction hash to approve" />
+            <label>Fee (AURA)</label>
+            <input id="msig-approve-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button class="btn btn-primary" id="btn-msig-approve">Approve</button>
+          </div>
+          <div id="msig-approve-result" class="code-block" style="display:none;"></div>
+          <div id="msig-approve-error" class="error-msg" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+          <h3>View Multi-Sig Wallets</h3>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm" id="btn-msig-refresh">Refresh</button>
+          </div>
+          <div id="msig-wallets-list" class="code-block" style="display:none; margin-top:12px;"></div>
+        </div>
+      </section>
+
+      <!-- ===== TIME-LOCK TAB ===== -->
+      <section id="tab-timelock" class="tab">
+        <h2>Time-lock Transfer</h2>
+
+        <div id="timelock-no-wallet" class="card">
+          <div class="error-msg">Load a wallet in the Wallet tab first.</div>
+        </div>
+
+        <div id="timelock-form" style="display:none;">
+          <div class="card">
+            <h3>Schedule a Transfer</h3>
+            <p class="muted">Send AURA that only unlocks after a specific block height. The fee is deducted immediately; the transfer happens when the target height is reached.</p>
+            <div class="form-grid">
+              <label>To Address</label>
+              <input id="tl-to" type="text" placeholder="aura1..." />
+              <label>Amount (AURA)</label>
+              <input id="tl-amount" type="number" min="0" step="0.00000001" placeholder="0.00000000" />
+              <label>Fee (AURA)</label>
+              <input id="tl-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+              <label>Unlock at Block Height</label>
+              <input id="tl-height" type="number" min="1" placeholder="e.g. 10000" />
+            </div>
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-primary" id="btn-tl-send">Schedule Transfer</button>
+            </div>
+            <div id="tl-result" class="code-block" style="display:none;"></div>
+            <div id="tl-error" class="error-msg" style="display:none;"></div>
+          </div>
+
+          <div class="card">
+            <h3>Check Unlock Status</h3>
+            <div class="form-grid">
+              <label>Transaction Hash</label>
+              <input id="tl-check-hash" type="text" placeholder="transaction hash" />
+            </div>
+            <div class="btn-row" style="margin-top:12px;">
+              <button class="btn btn-sm btn-primary" id="btn-tl-check">Check Status</button>
+            </div>
+            <div id="tl-check-result" class="code-block" style="display:none;"></div>
+          </div>
         </div>
       </section>
 

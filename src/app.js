@@ -361,6 +361,7 @@ function loadWallet(kp) {
   document.getElementById('w-balance').textContent = '—';
   updateSendTab();
   refreshBalance();
+  document.dispatchEvent(new Event("walletLoaded"));
 }
 
 async function refreshBalance() {
@@ -385,6 +386,8 @@ function clearWallet() {
   document.getElementById('wallet-loaded').style.display = 'none';
   document.getElementById('gen-result').style.display = 'none';
   updateSendTab();
+
+  document.dispatchEvent(new Event("walletCleared"));
 }
 
 async function exportKeystoreFromWallet() {
@@ -708,6 +711,246 @@ async function init() {
   if (remoteUrlEl) {
     setTimeout(() => connectNode(), 500); // small delay for UI to render
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Utility helpers for new tabs
+// ---------------------------------------------------------------------------
+
+function showTabResult(id, text) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = "";
+}
+
+function hideTabEl(id) {
+  var el = document.getElementById(id);
+  if (el) el.style.display = "none";
+}
+
+function showTabError(id, msg) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "";
+}
+
+// sendTypedTx - sign and submit typed transaction via Tauri
+
+async function sendTypedTx(txType, to, amount, fee, resultId, errorId) {
+  hideTabEl(resultId);
+  hideTabEl(errorId);
+  if (!State.wallet) { showTabError(errorId, "No wallet loaded"); return; }
+  try {
+    var nonce = 1;
+    try {
+      var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
+      nonce = (nd.nonce != null ? nd.nonce : (nd != null ? nd : 0)) + 1;
+    } catch (_) {}
+    var timestamp = Math.floor(Date.now() / 1000);
+    var signed = await invoke("sign_transaction", {
+      args: {
+        private_key_hex: State.wallet.privateKeyHex,
+        from: State.wallet.address,
+        to: to, amount: amount, fee: fee,
+        nonce: nonce, timestamp: timestamp, tx_type: txType
+      }
+    });
+    if (!signed) return;
+    var body = {
+      from: signed.from, to: signed.to, amount: signed.amount, fee: signed.fee,
+      nonce: signed.nonce, timestamp: signed.timestamp,
+      signature: signed.signature, public_key: signed.public_key,
+      tx_type: signed.tx_type, signing_algorithm: signed.signing_algorithm
+    };
+    var res = await fetch(rpcBase() + "/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    var rj = await res.json().catch(function() { return { status: res.statusText }; });
+    showTabResult(resultId, JSON.stringify(rj, null, 2));
+  } catch (e) {
+    showTabError(errorId, e.message || String(e));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// STAKING TAB
+// ---------------------------------------------------------------------------
+
+function initStakingTab() {
+  function updateStakingVisibility() {
+    var hasWallet = !!State.wallet;
+    var nw = document.getElementById("staking-no-wallet");
+    var fm = document.getElementById("staking-form");
+    if (nw) nw.style.display = hasWallet ? "none" : "";
+    if (fm) fm.style.display = hasWallet ? "" : "none";
+  }
+  document.addEventListener("walletLoaded", updateStakingVisibility);
+  document.addEventListener("walletCleared", updateStakingVisibility);
+  updateStakingVisibility();
+  var btnStake = document.getElementById("btn-stake");
+  if (btnStake) btnStake.addEventListener("click", async function() {
+    var amount = parseFloat(document.getElementById("stake-amount").value);
+    var fee = parseFloat(document.getElementById("stake-fee").value) || 0.001;
+    if (!amount || amount < 1000) { showTabError("stake-error", "Minimum stake is 1,000 AURA"); return; }
+    await sendTypedTx("Stake", State.wallet.address, amount, fee, "stake-result", "stake-error");
+  });
+  var btnUnstake = document.getElementById("btn-unstake");
+  if (btnUnstake) btnUnstake.addEventListener("click", async function() {
+    var fee = parseFloat(document.getElementById("stake-fee").value) || 0.001;
+    await sendTypedTx("Unstake", State.wallet.address, 0, fee, "stake-result", "stake-error");
+  });
+  var btnDelegate = document.getElementById("btn-delegate");
+  if (btnDelegate) btnDelegate.addEventListener("click", async function() {
+    var to = document.getElementById("delegate-to").value.trim();
+    var amount = parseFloat(document.getElementById("delegate-amount").value);
+    var fee = parseFloat(document.getElementById("delegate-fee").value) || 0.001;
+    if (!to) { showTabError("delegate-error", "Enter validator address"); return; }
+    if (!amount) { showTabError("delegate-error", "Enter amount"); return; }
+    await sendTypedTx("Delegate", to, amount, fee, "delegate-result", "delegate-error");
+  });
+  var btnUndelegate = document.getElementById("btn-undelegate");
+  if (btnUndelegate) btnUndelegate.addEventListener("click", async function() {
+    var to = document.getElementById("delegate-to").value.trim();
+    var amount = parseFloat(document.getElementById("delegate-amount").value) || 0;
+    var fee = parseFloat(document.getElementById("delegate-fee").value) || 0.001;
+    if (!to) { showTabError("delegate-error", "Enter validator address"); return; }
+    await sendTypedTx("Undelegate", to, amount, fee, "delegate-result", "delegate-error");
+  });
+}
+
+// ---------------------------------------------------------------------------
+// MULTI-SIG TAB
+// ---------------------------------------------------------------------------
+
+function initMultiSigTab() {
+  var btnMsigCreate = document.getElementById("btn-msig-create");
+  if (btnMsigCreate) btnMsigCreate.addEventListener("click", async function() {
+    hideTabEl("msig-create-result"); hideTabEl("msig-create-error");
+    if (!State.wallet) { showTabError("msig-create-error", "No wallet loaded"); return; }
+    var lines = document.getElementById("msig-signers").value
+      .trim().split("
+").map(function(s) { return s.trim(); }).filter(Boolean);
+    var threshold = parseInt(document.getElementById("msig-threshold").value);
+    var fee = parseFloat(document.getElementById("msig-create-fee").value) || 0.001;
+    if (lines.length < 2) { showTabError("msig-create-error", "Need at least 2 signers"); return; }
+    if (threshold < 1 || threshold > lines.length) { showTabError("msig-create-error", "Invalid threshold"); return; }
+    var msigData = JSON.stringify({ signers: lines, threshold: threshold });
+    await sendTypedTx("MultisigCreate", msigData, 0, fee, "msig-create-result", "msig-create-error");
+  });
+  var btnMsigPropose = document.getElementById("btn-msig-propose");
+  if (btnMsigPropose) btnMsigPropose.addEventListener("click", async function() {
+    hideTabEl("msig-propose-result"); hideTabEl("msig-propose-error");
+    if (!State.wallet) { showTabError("msig-propose-error", "No wallet loaded"); return; }
+    var from = document.getElementById("msig-from").value.trim();
+    var to = document.getElementById("msig-to").value.trim();
+    var amount = parseFloat(document.getElementById("msig-amount").value) || 0;
+    var fee = parseFloat(document.getElementById("msig-propose-fee").value) || 0.001;
+    if (!from || !to) { showTabError("msig-propose-error", "Fill in all fields"); return; }
+    await sendTypedTx("MultisigPropose", to, amount, fee, "msig-propose-result", "msig-propose-error");
+  });
+  var btnMsigApprove = document.getElementById("btn-msig-approve");
+  if (btnMsigApprove) btnMsigApprove.addEventListener("click", async function() {
+    hideTabEl("msig-approve-result"); hideTabEl("msig-approve-error");
+    if (!State.wallet) { showTabError("msig-approve-error", "No wallet loaded"); return; }
+    var txId = document.getElementById("msig-approve-txid").value.trim();
+    var fee = parseFloat(document.getElementById("msig-approve-fee").value) || 0.001;
+    if (!txId) { showTabError("msig-approve-error", "Enter tx ID to approve"); return; }
+    await sendTypedTx("MultisigApprove", txId, 0, fee, "msig-approve-result", "msig-approve-error");
+  });
+  var btnMsigRefresh = document.getElementById("btn-msig-refresh");
+  if (btnMsigRefresh) btnMsigRefresh.addEventListener("click", async function() {
+    hideTabEl("msig-wallets-list");
+    try {
+      var data = await rpcFetch("/multisig/wallets");
+      var el = document.getElementById("msig-wallets-list");
+      el.textContent = JSON.stringify(data, null, 2);
+      el.style.display = "";
+    } catch (e) { console.error("msig wallets fetch error", e); }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// TIME-LOCK TAB
+// ---------------------------------------------------------------------------
+
+function initTimelockTab() {
+  function updateTimelockVisibility() {
+    var hasWallet = !!State.wallet;
+    var nw = document.getElementById("timelock-no-wallet");
+    var fm = document.getElementById("timelock-form");
+    if (nw) nw.style.display = hasWallet ? "none" : "";
+    if (fm) fm.style.display = hasWallet ? "" : "none";
+  }
+  document.addEventListener("walletLoaded", updateTimelockVisibility);
+  document.addEventListener("walletCleared", updateTimelockVisibility);
+  updateTimelockVisibility();
+  var btnTlSend = document.getElementById("btn-tl-send");
+  if (btnTlSend) btnTlSend.addEventListener("click", async function() {
+    hideTabEl("tl-result"); hideTabEl("tl-error");
+    if (!State.wallet) { showTabError("tl-error", "No wallet loaded"); return; }
+    var to = document.getElementById("tl-to").value.trim();
+    var amount = parseFloat(document.getElementById("tl-amount").value);
+    var fee = parseFloat(document.getElementById("tl-fee").value) || 0.001;
+    var notBefore = parseInt(document.getElementById("tl-height").value);
+    if (!to) { showTabError("tl-error", "Enter recipient address"); return; }
+    if (!amount) { showTabError("tl-error", "Enter amount"); return; }
+    if (!notBefore || notBefore < 1) { showTabError("tl-error", "Enter a valid block height"); return; }
+    try {
+      var nonce = 1;
+      try {
+        var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
+        nonce = (nd.nonce != null ? nd.nonce : (nd != null ? nd : 0)) + 1;
+      } catch (_) {}
+      var timestamp = Math.floor(Date.now() / 1000);
+      var signed = await invoke("sign_transaction", {
+        args: {
+          private_key_hex: State.wallet.privateKeyHex,
+          from: State.wallet.address,
+          to: to, amount: amount, fee: fee,
+          nonce: nonce, timestamp: timestamp, tx_type: "Transfer"
+        }
+      });
+      if (!signed) return;
+      var body = {
+        from: signed.from, to: signed.to, amount: signed.amount, fee: signed.fee,
+        nonce: signed.nonce, timestamp: signed.timestamp,
+        signature: signed.signature, public_key: signed.public_key,
+        tx_type: signed.tx_type, signing_algorithm: signed.signing_algorithm,
+        not_before_height: notBefore
+      };
+      var res = await fetch(rpcBase() + "/transactions/timelock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      var rj = await res.json().catch(function() { return { status: res.statusText }; });
+      showTabResult("tl-result", JSON.stringify(rj, null, 2));
+    } catch (e) { showTabError("tl-error", e.message || String(e)); }
+  });
+  var btnTlCheck = document.getElementById("btn-tl-check");
+  if (btnTlCheck) btnTlCheck.addEventListener("click", async function() {
+    hideTabEl("tl-check-result");
+    var hash = document.getElementById("tl-check-hash").value.trim();
+    if (!hash) return;
+    try {
+      var data = await rpcFetch("/transactions/" + hash + "/unlock-status");
+      showTabResult("tl-check-result", JSON.stringify(data, null, 2));
+    } catch (e) { console.error("timelock check error", e); }
+  });
+}
+
+// Override init() to call new tab inits after original init()
+var _origInit = init;
+async function init() {
+  await _origInit();
+  initStakingTab();
+  initMultiSigTab();
+  initTimelockTab();
 }
 
 document.addEventListener('DOMContentLoaded', init);
