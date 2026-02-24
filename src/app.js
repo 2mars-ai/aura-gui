@@ -80,23 +80,41 @@ async function connectNode() {
   const remoteUrl = remoteUrlEl ? remoteUrlEl.value.trim() : '';
 
   if (remoteUrl) {
-    // Remote node mode — just store the URL and probe it
+    // Remote node mode — store URL then probe via Tauri or direct fetch
     State.rpcUrl = remoteUrl;
-    try {
-      const result = await invoke('start_node', {
-        args: {
-          remote_url: remoteUrl,
-          binary_path: null,
-          data_dir: null,
-          rpc_port: null,
-          p2p_port: null,
-          node_id: null,
-          bootstrap: null,
-        }
-      });
-      handleNodeResult(result, false);
-    } catch (err) {
-      showNodeError(err.toString());
+    if (isTauri) {
+      try {
+        const result = await invoke('start_node', {
+          args: {
+            remote_url: remoteUrl,
+            binary_path: null,
+            data_dir: null,
+            rpc_port: null,
+            p2p_port: null,
+            node_id: null,
+            bootstrap: null,
+          }
+        });
+        handleNodeResult(result, false);
+      } catch (err) {
+        showNodeError(err.toString());
+      }
+    } else {
+      // Fallback: direct fetch (works without Tauri IPC for read-only status)
+      try {
+        const data = await rpcFetch('/status');
+        handleNodeResult({
+          connected: true, running: false, rpc_url: remoteUrl,
+          block_height: data.block_height ?? data.height,
+          peer_count: data.peer_count ?? data.peers,
+          validator_count: data.validator_count,
+          total_supply: data.total_supply,
+          chain_id: data.chain_id,
+          version: data.version,
+        }, false);
+      } catch (err) {
+        showNodeError('Node unreachable: ' + err.message);
+      }
     }
   } else {
     // Local subprocess mode
