@@ -711,6 +711,9 @@ async function init() {
   if (remoteUrlEl) {
     setTimeout(() => connectNode(), 500); // small delay for UI to render
   }
+  initStakingTab();
+  initMultiSigTab();
+  initTimelockTab();
 }
 
 
@@ -942,15 +945,6 @@ function initTimelockTab() {
       showTabResult("tl-check-result", JSON.stringify(data, null, 2));
     } catch (e) { console.error("timelock check error", e); }
   });
-}
-
-// Override init() to call new tab inits after original init()
-var _origInit = init;
-async function init() {
-  await _origInit();
-  initStakingTab();
-  initMultiSigTab();
-  initTimelockTab();
 }
 
 document.addEventListener('DOMContentLoaded', init);
