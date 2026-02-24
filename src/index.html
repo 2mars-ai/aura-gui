@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AuraCore Desktop</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header id="header">
+    <div id="logo">
+      <span class="logo-icon">A</span>
+      <span class="logo-text">AuraCore Desktop</span>
+    </div>
+    <div id="node-indicator">
+      <span id="node-dot" class="dot dot-off"></span>
+      <span id="node-label">Node offline</span>
+    </div>
+  </header>
+
+  <!-- ===== Main layout ===== -->
+  <div id="layout">
+
+    <!-- Sidebar nav -->
+    <nav id="sidebar">
+      <button class="nav-btn active" data-tab="node">Node</button>
+      <button class="nav-btn" data-tab="wallet">Wallet</button>
+      <button class="nav-btn" data-tab="send">Send</button>
+      <button class="nav-btn" data-tab="explorer">Explorer</button>
+      <button class="nav-btn" data-tab="validators">Validators</button>
+    </nav>
+
+    <!-- Content area -->
+    <main id="content">
+
+      <!-- ===== NODE TAB ===== -->
+      <section id="tab-node" class="tab active">
+        <h2>Node Management</h2>
+
+        <div class="card">
+          <h3>Remote Node (Testnet)</h3>
+          <p class="muted" style="margin-bottom:12px;">Connect to a running AuraCore node over HTTP. Leave blank to run a local node instead.</p>
+          <div class="form-grid">
+            <label>Remote Node URL</label>
+            <input id="cfg-remote-url" type="text" placeholder="http://89.167.89.226:8545"
+              value="http://89.167.89.226:8545" />
+          </div>
+          <div class="btn-row" style="margin-top:16px;">
+            <button id="btn-start" class="btn btn-primary">Connect</button>
+            <button id="btn-stop" class="btn btn-danger" disabled>Stop Local Node</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Local Node (Advanced)</h3>
+          <p class="muted" style="margin-bottom:12px;">Launch a local auracore process. Requires auracore.exe in the same folder or in PATH. Clear the Remote Node URL above first.</p>
+          <div class="form-grid">
+            <label>Binary Path</label>
+            <input id="cfg-binary" type="text" placeholder="auracore  (or full path to auracore.exe)" value="auracore" />
+
+            <label>Data Directory</label>
+            <input id="cfg-datadir" type="text" placeholder="%USERPROFILE%\.auracore\data" />
+
+            <label>RPC Port</label>
+            <input id="cfg-rpc" type="number" value="8545" min="1" max="65535" />
+
+            <label>P2P Port</label>
+            <input id="cfg-p2p" type="number" value="30341" min="1" max="65535" />
+
+            <label>Node ID</label>
+            <input id="cfg-nodeid" type="text" placeholder="desktop-wallet" value="desktop-wallet" />
+
+            <label>Bootstrap Peers</label>
+            <input id="cfg-bootstrap" type="text"
+              value="/ip4/88.198.75.149/tcp/30333,/ip4/89.167.89.226/tcp/30333" />
+          </div>
+        </div>
+
+        <div class="card" id="node-stats-card" style="display:none;">
+          <h3>Chain Status</h3>
+          <div id="node-stats" class="stats-grid">
+            <div class="stat"><span class="stat-label">Block Height</span><span class="stat-value" id="stat-height">—</span></div>
+            <div class="stat"><span class="stat-label">Peers</span><span class="stat-value" id="stat-peers">—</span></div>
+            <div class="stat"><span class="stat-label">Validators</span><span class="stat-value" id="stat-validators">—</span></div>
+            <div class="stat"><span class="stat-label">Total Supply</span><span class="stat-value" id="stat-supply">—</span></div>
+            <div class="stat"><span class="stat-label">Chain ID</span><span class="stat-value" id="stat-chainid">—</span></div>
+            <div class="stat"><span class="stat-label">Version</span><span class="stat-value" id="stat-version">—</span></div>
+          </div>
+          <div id="node-error" class="error-msg" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ===== WALLET TAB ===== -->
+      <section id="tab-wallet" class="tab">
+        <h2>Wallet</h2>
+
+        <!-- Active wallet display -->
+        <div class="card" id="wallet-active-card">
+          <h3>Active Wallet</h3>
+          <div id="wallet-empty" class="muted">No wallet loaded. Generate or import a keypair below.</div>
+          <div id="wallet-loaded" style="display:none;">
+            <div class="kv-row"><span class="kv-key">Address</span><code id="w-address" class="copyable"></code></div>
+            <div class="kv-row"><span class="kv-key">Balance</span><span id="w-balance">—</span><button class="btn btn-sm" id="btn-refresh-balance">Refresh</button></div>
+            <div class="kv-row"><span class="kv-key">Nonce</span><span id="w-nonce">—</span></div>
+            <div class="btn-row" style="margin-top:12px;">
+              <button class="btn btn-sm btn-danger" id="btn-clear-wallet">Clear Wallet</button>
+              <button class="btn btn-sm" id="btn-export-keystore">Export Keystore</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generate new keypair -->
+        <div class="card">
+          <h3>Generate New Keypair</h3>
+          <p class="muted">Creates a new random Ed25519 keypair. Save your private key somewhere safe — it cannot be recovered if lost.</p>
+          <button class="btn btn-primary" id="btn-gen-keypair">Generate Keypair</button>
+          <div id="gen-result" class="code-block" style="display:none;"></div>
+        </div>
+
+        <!-- Import private key -->
+        <div class="card">
+          <h3>Import Private Key</h3>
+          <div class="form-grid">
+            <label>Private Key (64 hex chars)</label>
+            <input id="import-privkey" type="password" placeholder="64-character hex private key" />
+          </div>
+          <button class="btn btn-primary" id="btn-import-privkey" style="margin-top:12px;">Import</button>
+        </div>
+
+        <!-- Import / Export keystore -->
+        <div class="card">
+          <h3>Keystore (encrypted JSON)</h3>
+          <p class="muted">AES-256-GCM + PBKDF2 encrypted. Compatible with AuraCore keystore format.</p>
+          <div class="form-grid">
+            <label>Password</label>
+            <input id="ks-password" type="password" placeholder="keystore password" />
+            <label>Keystore JSON</label>
+            <textarea id="ks-json" rows="6" placeholder="Paste keystore JSON here to import, or export will appear here"></textarea>
+          </div>
+          <div class="btn-row" style="margin-top:12px;">
+            <button class="btn btn-primary" id="btn-ks-import">Unlock Keystore</button>
+            <button class="btn" id="btn-ks-export">Encrypt & Export</button>
+          </div>
+          <div id="ks-error" class="error-msg" style="display:none;"></div>
+        </div>
+      </section>
+
+      <!-- ===== SEND TAB ===== -->
+      <section id="tab-send" class="tab">
+        <h2>Send AURA</h2>
+
+        <div class="card">
+          <div id="send-no-wallet" class="error-msg">Load a wallet in the Wallet tab first.</div>
+          <div id="send-form" style="display:none;">
+            <div class="form-grid">
+              <label>From</label>
+              <code id="send-from" class="muted"></code>
+
+              <label>To Address</label>
+              <input id="send-to" type="text" placeholder="aura1..." />
+
+              <label>Amount (AURA)</label>
+              <input id="send-amount" type="number" min="0" step="0.00000001" placeholder="0.00000000" />
+
+              <label>Fee (AURA)</label>
+              <input id="send-fee" type="number" min="0" step="0.00000001" value="0.00100000" />
+
+              <label>Tx Type</label>
+              <select id="send-txtype">
+                <option value="Transfer">Transfer</option>
+                <option value="Stake">Stake</option>
+                <option value="Unstake">Unstake</option>
+                <option value="Delegate">Delegate</option>
+                <option value="Undelegate">Undelegate</option>
+                <option value="NameRegister">Name Register (.aura)</option>
+                <option value="GovernancePropose">Governance Propose</option>
+                <option value="GovernanceVote">Governance Vote</option>
+              </select>
+            </div>
+
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-primary" id="btn-send">Sign &amp; Send</button>
+            </div>
+
+            <div id="send-result" class="code-block" style="display:none;"></div>
+            <div id="send-error" class="error-msg" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== EXPLORER TAB ===== -->
+      <section id="tab-explorer" class="tab">
+        <h2>Block Explorer</h2>
+
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn btn-sm btn-primary" id="btn-explorer-refresh">Refresh</button>
+            <span class="muted" style="margin-left:12px;">Showing latest 20 blocks</span>
+          </div>
+
+          <div id="explorer-error" class="error-msg" style="display:none;"></div>
+
+          <table id="blocks-table" class="data-table">
+            <thead>
+              <tr>
+                <th>Height</th>
+                <th>Hash</th>
+                <th>Validator</th>
+                <th>Txs</th>
+                <th>Reward</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="blocks-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Block detail panel -->
+        <div class="card" id="block-detail-card" style="display:none;">
+          <h3>Block Detail <button class="btn btn-sm" id="btn-close-detail">Close</button></h3>
+          <pre id="block-detail-pre" class="code-block"></pre>
+        </div>
+      </section>
+
+      <!-- ===== VALIDATORS TAB ===== -->
+      <section id="tab-validators" class="tab">
+        <h2>Validators</h2>
+
+        <div class="card">
+          <div class="toolbar">
+            <button class="btn btn-sm btn-primary" id="btn-val-refresh">Refresh</button>
+          </div>
+          <div id="validators-error" class="error-msg" style="display:none;"></div>
+          <table id="validators-table" class="data-table">
+            <thead>
+              <tr>
+                <th>Address</th>
+                <th>Stake</th>
+                <th>Blocks Produced</th>
+                <th>Reputation</th>
+                <th>Jailed</th>
+              </tr>
+            </thead>
+            <tbody id="validators-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

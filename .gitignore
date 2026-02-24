@@ -1,0 +1,32 @@
+# Rust / Cargo
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Tauri
+src-tauri/target/
+src-tauri/WixTools/
+src-tauri/gen/
+
+# Node (if ever adding a build step)
+node_modules/
+dist/
+.parcel-cache/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*~
+
+# Tauri generated schemas (auto-regenerated on build)
+src-tauri/gen/
+
+# Replace placeholder icons with real ones before shipping
+# src-tauri/icons/ is intentionally tracked (placeholder icons included)
+# Run: cargo tauri icon <your-1024x1024.png>  to regenerate them
