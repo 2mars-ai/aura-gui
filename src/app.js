@@ -11,11 +11,20 @@
 const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 
 async function invoke(cmd, args = {}) {
-  if (!isTauri) {
-    console.warn(`invoke('${cmd}') called outside Tauri — stubbed`);
-    return null;
+  // Try Tauri v2 core.invoke first
+  if (window.__TAURI__?.core?.invoke) {
+    return window.__TAURI__.core.invoke(cmd, args);
   }
-  return window.__TAURI__.core.invoke(cmd, args);
+  // Tauri v1 / alternate path
+  if (window.__TAURI__?.tauri?.invoke) {
+    return window.__TAURI__.tauri.invoke(cmd, args);
+  }
+  // Direct invoke
+  if (window.__TAURI__?.invoke) {
+    return window.__TAURI__.invoke(cmd, args);
+  }
+  console.warn(`invoke('${cmd}') — Tauri IPC not available`);
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +157,11 @@ async function connectNode() {
     } catch (err) {
       showNodeError(err.toString());
     }
+  }
+
+  // If still showing "offline" after attempt, show a message
+  if (nodeDot.classList.contains('dot-off')) {
+    nodeLabel.textContent = 'Could not connect — check node URL';
   }
 
   btnStart.disabled = false;
@@ -338,6 +352,8 @@ function loadWallet(kp) {
     privateKeyHex: kp.private_key_hex,
     publicKeyHex: kp.public_key_hex,
   };
+  const placeholder = document.getElementById('wallet-placeholder');
+  if (placeholder) placeholder.style.display = 'none';
   document.getElementById('wallet-empty').style.display = 'none';
   document.getElementById('wallet-loaded').style.display = 'block';
   document.getElementById('w-address').textContent = kp.address;
@@ -363,6 +379,8 @@ async function refreshBalance() {
 
 function clearWallet() {
   State.wallet = null;
+  const placeholder = document.getElementById('wallet-placeholder');
+  if (placeholder) placeholder.style.display = 'block';
   document.getElementById('wallet-empty').style.display = 'block';
   document.getElementById('wallet-loaded').style.display = 'none';
   document.getElementById('gen-result').style.display = 'none';
@@ -684,6 +702,11 @@ async function init() {
   const remoteUrlEl = document.getElementById('cfg-remote-url');
   if (remoteUrlEl && !remoteUrlEl.value) {
     remoteUrlEl.value = 'http://89.167.89.226:8545';
+  }
+
+  // Auto-connect to default testnet on startup
+  if (remoteUrlEl) {
+    setTimeout(() => connectNode(), 500); // small delay for UI to render
   }
 }
 
