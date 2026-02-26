@@ -381,9 +381,10 @@ async function generateKeypair() {
 }
 
 async function importPrivkey() {
-  const hex = document.getElementById('import-privkey').value.trim();
+  const hex = document.getElementById('import-privkey').value.replace(/\s/g, '').toLowerCase();
   if (!hex) { alert('Enter a private key.'); return; }
-  if (hex.length !== 64) { alert('Private key must be exactly 64 hex characters.'); return; }
+  if (hex.length !== 64) { alert(`Private key must be exactly 64 hex characters (got ${hex.length}). Make sure you paste only the private key, not the address or public key.`); return; }
+  if (!/^[0-9a-f]{64}$/.test(hex)) { alert('Private key contains invalid characters. It must be a 64-character hex string (0-9, a-f).'); return; }
   try {
     // Use sign_transaction to derive the public key from the private key
     const ts = Math.floor(Date.now() / 1000);
