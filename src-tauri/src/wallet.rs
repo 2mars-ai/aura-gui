@@ -11,7 +11,7 @@ use aes_gcm::{
     Nonce,
 };
 use pbkdf2::pbkdf2_hmac;
-use sha2::Sha256;
+use sha2::{Sha256, Digest};
 use rand::RngCore;
 
 // ---------------------------------------------------------------------------
@@ -39,6 +39,7 @@ pub struct SignTxArgs {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignedTxPayload {
+    pub id: String,
     pub from: String,
     pub to: String,
     pub amount: f64,
@@ -118,10 +119,12 @@ pub fn sign_transaction(args: SignTxArgs) -> Result<SignedTxPayload, String> {
         args.timestamp,
     );
 
+    let id = format!("{:x}", Sha256::digest(payload.as_bytes()));
     let signature = kp.sign(&payload);
     let tx_type = args.tx_type.unwrap_or_else(|| "transfer".to_string());
 
     Ok(SignedTxPayload {
+        id,
         from: args.from,
         to: args.to,
         amount: args.amount,

@@ -529,6 +529,7 @@ async function sendTransaction() {
 
     // Submit to node
     const body = {
+      id: signed.id,
       from: signed.from,
       to: signed.to,
       amount: signed.amount,
@@ -951,6 +952,7 @@ async function sendTypedTx(txType, to, amount, fee, resultId, errorId) {
     });
     if (!signed) return;
     var body = {
+      id: signed.id,
       from: signed.from, to: signed.to, amount: signed.amount, fee: signed.fee,
       nonce: signed.nonce, timestamp: signed.timestamp,
       signature: signed.signature, public_key: signed.public_key,
@@ -1108,6 +1110,7 @@ function initTimelockTab() {
       if (!signed) return;
       var body = {
         from: signed.from, to: signed.to, amount: signed.amount, fee: signed.fee,
+        id: signed.id,
         nonce: signed.nonce, timestamp: signed.timestamp,
         signature: signed.signature, public_key: signed.public_key,
         tx_type: signed.tx_type, signing_algorithm: signed.signing_algorithm,
