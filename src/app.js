@@ -362,7 +362,7 @@ async function importPrivkey() {
         fee: 0.0,
         nonce: 1,
         timestamp: ts,
-        tx_type: 'Transfer',
+        tx_type: 'transfer',
       }
     });
     if (!signed) return;
@@ -988,12 +988,12 @@ function initStakingTab() {
     var amount = parseFloat(document.getElementById("stake-amount").value);
     var fee = parseFloat(document.getElementById("stake-fee").value) || 0.001;
     if (!amount || amount < 1000) { showTabError("stake-error", "Minimum stake is 1,000 AURA"); return; }
-    await sendTypedTx("Stake", State.wallet.address, amount, fee, "stake-result", "stake-error");
+    await sendTypedTx("stake", State.wallet.address, amount, fee, "stake-result", "stake-error");
   });
   var btnUnstake = document.getElementById("btn-unstake");
   if (btnUnstake) btnUnstake.addEventListener("click", async function() {
     var fee = parseFloat(document.getElementById("stake-fee").value) || 0.001;
-    await sendTypedTx("Unstake", State.wallet.address, 0, fee, "stake-result", "stake-error");
+    await sendTypedTx("unstake", State.wallet.address, 0, fee, "stake-result", "stake-error");
   });
   var btnDelegate = document.getElementById("btn-delegate");
   if (btnDelegate) btnDelegate.addEventListener("click", async function() {
@@ -1002,7 +1002,7 @@ function initStakingTab() {
     var fee = parseFloat(document.getElementById("delegate-fee").value) || 0.001;
     if (!to) { showTabError("delegate-error", "Enter validator address"); return; }
     if (!amount) { showTabError("delegate-error", "Enter amount"); return; }
-    await sendTypedTx("Delegate", to, amount, fee, "delegate-result", "delegate-error");
+    await sendTypedTx("delegate", to, amount, fee, "delegate-result", "delegate-error");
   });
   var btnUndelegate = document.getElementById("btn-undelegate");
   if (btnUndelegate) btnUndelegate.addEventListener("click", async function() {
@@ -1010,7 +1010,7 @@ function initStakingTab() {
     var amount = parseFloat(document.getElementById("delegate-amount").value) || 0;
     var fee = parseFloat(document.getElementById("delegate-fee").value) || 0.001;
     if (!to) { showTabError("delegate-error", "Enter validator address"); return; }
-    await sendTypedTx("Undelegate", to, amount, fee, "delegate-result", "delegate-error");
+    await sendTypedTx("undelegate", to, amount, fee, "delegate-result", "delegate-error");
   });
 }
 
@@ -1102,7 +1102,7 @@ function initTimelockTab() {
           private_key_hex: State.wallet.privateKeyHex,
           from: State.wallet.address,
           to: to, amount: amount, fee: fee,
-          nonce: nonce, timestamp: timestamp, tx_type: "Transfer"
+          nonce: nonce, timestamp: timestamp, tx_type: "transfer"
         }
       });
       if (!signed) return;

@@ -119,7 +119,7 @@ pub fn sign_transaction(args: SignTxArgs) -> Result<SignedTxPayload, String> {
     );
 
     let signature = kp.sign(&payload);
-    let tx_type = args.tx_type.unwrap_or_else(|| "Transfer".to_string());
+    let tx_type = args.tx_type.unwrap_or_else(|| "transfer".to_string());
 
     Ok(SignedTxPayload {
         from: args.from,
