@@ -113,6 +113,7 @@
           <div id="wallet-loaded" style="display:none;">
             <div class="kv-row"><span class="kv-key">Address</span><code id="w-address" class="copyable"></code></div>
             <div class="kv-row"><span class="kv-key">Balance</span><span id="w-balance">—</span><button class="btn btn-sm" id="btn-refresh-balance">Refresh</button></div>
+            <div class="kv-row"><span class="kv-key">Staked</span><span id="w-staked">—</span></div>
             <div class="kv-row"><span class="kv-key">Nonce</span><span id="w-nonce">—</span></div>
             <div class="btn-row" style="margin-top:12px;">
               <button class="btn btn-sm btn-danger" id="btn-clear-wallet">Clear Wallet</button>
@@ -206,7 +207,7 @@
 
         <div class="card">
           <h3>Request Test AURA</h3>
-          <p class="muted">Get 1000 AURA testnet tokens. One request per address per day.</p>
+          <p class="muted">Get 1010 AURA testnet tokens. One request per address per day.</p>
 
           <div id="faucet-no-wallet" class="error-msg" style="display:none;">Load a wallet in the Wallet tab first.</div>
 
@@ -219,7 +220,7 @@
             </div>
 
             <div class="btn-row" style="margin-top:16px;">
-              <button class="btn btn-primary" id="btn-faucet-request">Request 1000 AURA</button>
+              <button class="btn btn-primary" id="btn-faucet-request">Request 1010 AURA</button>
               <button class="btn btn-sm" id="btn-faucet-check">Check Status</button>
             </div>
 
@@ -483,7 +484,7 @@
           <div class="btn-row">
             <button class="btn btn-primary" onclick="showTab('faucet')">Go to Faucet</button>
           </div>
-          <p class="muted" style="margin-top:12px; font-size:12px;">The faucet gives 1,000 AURA per address per day — one claim covers the minimum validator stake.</p>
+          <p class="muted" style="margin-top:12px; font-size:12px;">The faucet gives 1,010 AURA per address per day — one claim covers the minimum 1,000 AURA validator stake plus fees.</p>
         </div>
 
         <!-- Step 3: Stake & Register -->

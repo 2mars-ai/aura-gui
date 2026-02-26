@@ -400,6 +400,20 @@ async function refreshBalance() {
       const nd = await rpcFetch(`/accounts/${State.wallet.address}/nonce`);
       document.getElementById('w-nonce').textContent = nd.nonce ?? nd ?? '0';
     } catch (_) {}
+    try {
+      const vd = await rpcFetch(`/validators/${State.wallet.address}`);
+      const stake = vd.stake ?? vd.staked_amount ?? 0;
+      const stakedEl = document.getElementById('w-staked');
+      if (stake > 0) {
+        stakedEl.textContent = `${fmt(stake)} AURA${vd.is_active ? ' ✓ active validator' : ''}`;
+        stakedEl.style.color = vd.is_active ? 'var(--green, #4caf50)' : '';
+      } else {
+        stakedEl.textContent = 'Not staked';
+        stakedEl.style.color = '';
+      }
+    } catch (_) {
+      document.getElementById('w-staked').textContent = 'Not staked';
+    }
   } catch (err) {
     document.getElementById('w-balance').textContent = `Error: ${err.message}`;
   }
@@ -680,7 +694,7 @@ async function requestFaucet() {
     }
 
     const data = await response.json();
-    resultEl.textContent = `Success! Received 1000 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: 1000.00000000 AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
+    resultEl.textContent = `Success! Received 1010 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: ${data.amount ?? '1010.00000000'} AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
     resultEl.style.display = 'block';
 
     // Refresh balance after a short delay
@@ -693,7 +707,7 @@ async function requestFaucet() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Request 1000 AURA';
+    btn.textContent = 'Request 1010 AURA';
   }
 }
 
@@ -990,6 +1004,15 @@ function initStakingTab() {
     var amount = parseFloat(document.getElementById("stake-amount").value);
     var fee = parseFloat(document.getElementById("stake-fee").value) || 0.001;
     if (!amount || amount < 1000) { showTabError("stake-error", "Minimum stake is 1,000 AURA"); return; }
+    // Check balance: must have amount + fee available
+    try {
+      var balData = await rpcFetch("/accounts/" + State.wallet.address + "/balance");
+      var bal = balData.balance ?? balData ?? 0;
+      if (bal < amount + fee) {
+        showTabError("stake-error", "Insufficient balance: need " + (amount + fee).toFixed(8) + " AURA (you have " + bal.toFixed(8) + ")");
+        return;
+      }
+    } catch (_) {}
     await sendTypedTx("stake", State.wallet.address, amount, fee, "stake-result", "stake-error");
   });
   var btnUnstake = document.getElementById("btn-unstake");
