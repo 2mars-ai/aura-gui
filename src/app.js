@@ -104,6 +104,16 @@ const statsCard    = document.getElementById('node-stats-card');
 btnStart.addEventListener('click', connectNode);
 btnStop.addEventListener('click', stopNode);
 
+// Validator mode checkbox — show/hide address info
+document.getElementById('cfg-validator-mode')?.addEventListener('change', function() {
+  const info = document.getElementById('validator-mode-info');
+  if (info) info.style.display = this.checked ? 'block' : 'none';
+  const addrEl = document.getElementById('validator-mode-address');
+  if (this.checked && State.wallet && addrEl) {
+    addrEl.textContent = `Validator address: ${State.wallet.address}`;
+  }
+});
+
 async function connectNode() {
   btnStart.disabled = true;
   btnStart.textContent = 'Connecting…';
@@ -159,6 +169,8 @@ async function connectNode() {
     const p2pPort  = parseInt(document.getElementById('cfg-p2p').value, 10) || 30341;
     const nodeId   = document.getElementById('cfg-nodeid').value.trim() || 'desktop-wallet';
     const bootstrap = document.getElementById('cfg-bootstrap').value.trim();
+    const validatorMode = document.getElementById('cfg-validator-mode')?.checked ?? false;
+    const validatorAddress = validatorMode && State.wallet ? State.wallet.address : null;
 
     State.rpcUrl = `http://localhost:${rpcPort}`;
 
@@ -172,6 +184,8 @@ async function connectNode() {
           node_id: nodeId,
           bootstrap: bootstrap || null,
           remote_url: null,
+          validator_mode: validatorMode,
+          validator_address: validatorAddress,
         }
       });
       handleNodeResult(result, true);
@@ -337,9 +351,29 @@ async function generateKeypair() {
   try {
     const kp = await invoke('generate_keypair');
     if (!kp) return;
-    document.getElementById('gen-result').style.display = 'block';
-    document.getElementById('gen-result').textContent =
-      `Address:     ${kp.address}\nPublic key:  ${kp.public_key_hex}\nPrivate key: ${kp.private_key_hex}\n\nWARNING: Save your private key — it cannot be recovered if lost.`;
+    const box = document.getElementById('gen-result');
+    box.style.display = 'block';
+    box.innerHTML = `<div style="margin-bottom:8px;"><b>Address:</b><br><code style="user-select:all;">${kp.address}</code></div>
+<div style="margin-bottom:8px;"><b>Public key:</b><br><code style="user-select:all;">${kp.public_key_hex}</code></div>
+<div style="margin-bottom:8px;"><b>Private key:</b><br>
+  <span id="privkey-display" style="letter-spacing:0.1em;">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span>
+  <button id="btn-show-privkey" class="btn btn-sm" style="margin-left:8px;">Show</button>
+  <code id="privkey-text" style="display:none;user-select:all;">${kp.private_key_hex}</code>
+</div>
+<div class="muted" style="margin-top:8px;color:var(--red,#f44336);">⚠ Save your private key — it cannot be recovered if lost.</div>`;
+    document.getElementById('btn-show-privkey').addEventListener('click', function() {
+      const display = document.getElementById('privkey-display');
+      const text = document.getElementById('privkey-text');
+      if (text.style.display === 'none') {
+        display.style.display = 'none';
+        text.style.display = 'inline';
+        this.textContent = 'Hide';
+      } else {
+        display.style.display = 'inline';
+        text.style.display = 'none';
+        this.textContent = 'Show';
+      }
+    });
     loadWallet(kp);
   } catch (err) {
     alert(`Generate keypair failed: ${err}`);
@@ -366,7 +400,7 @@ async function importPrivkey() {
       }
     });
     if (!signed) return;
-    const address = await invoke('derive_address', { public_key_hex: signed.public_key });
+    const address = await invoke('derive_address', { publicKeyHex: signed.public_key });
     loadWallet({ address, private_key_hex: hex, public_key_hex: signed.public_key });
   } catch (err) {
     alert(`Import failed: ${err}`);
@@ -388,6 +422,11 @@ function loadWallet(kp) {
   document.getElementById('w-balance').textContent = '—';
   updateSendTab();
   refreshBalance();
+  // If validator mode checkbox is checked, update the address display
+  const addrEl = document.getElementById('validator-mode-address');
+  if (addrEl && document.getElementById('cfg-validator-mode')?.checked) {
+    addrEl.textContent = `Validator address: ${kp.address}`;
+  }
   document.dispatchEvent(new Event("walletLoaded"));
 }
 
@@ -597,7 +636,7 @@ async function refreshExplorer() {
   try {
     // Get current height first
     const status = await rpcFetch('/status');
-    const height = status.block_height ?? status.height ?? 0;
+    const height = status.chain_height ?? status.block_height ?? status.height ?? 0;
 
     // Fetch last 20 blocks
     const start = Math.max(0, height - 19);
@@ -713,34 +752,46 @@ async function requestFaucet() {
 
 async function checkFaucetStatus() {
   if (!State.wallet) return;
+  const cooldownEl = document.getElementById('faucet-cooldown');
+  if (!cooldownEl) return;
 
   try {
-    const response = await fetch(`${rpcBase()}/faucet/${State.wallet.address}`, {
-      method: 'GET',
-    });
+    const base = rpcBase();
+    if (!base) { cooldownEl.textContent = '—'; return; }
+
+    const response = await fetch(`${base}/faucet/${State.wallet.address}`, { method: 'GET' });
+
+    // 404 means address never requested — ready to go
+    if (response.status === 404) {
+      cooldownEl.textContent = 'Ready to request';
+      cooldownEl.style.color = 'var(--green, #4caf50)';
+      return;
+    }
 
     const data = await response.json().catch(() => ({}));
-    const cooldownEl = document.getElementById('faucet-cooldown');
 
-    if (data.last_request) {
-      const lastTime = new Date(data.last_request);
+    if (data.last_request || data.last_claim) {
+      const raw = data.last_request || data.last_claim;
+      // Try Unix timestamp (seconds) or ISO string
+      const lastTime = typeof raw === 'number' ? new Date(raw * 1000) : new Date(raw);
       const nextTime = new Date(lastTime.getTime() + 24 * 60 * 60 * 1000);
       const now = new Date();
 
       if (now < nextTime) {
         const hoursLeft = Math.ceil((nextTime - now) / (60 * 60 * 1000));
-        cooldownEl.textContent = `Cooldown active (${hoursLeft} hours remaining)`;
-        cooldownEl.style.color = 'var(--red)';
+        cooldownEl.textContent = `Cooldown active — ${hoursLeft}h remaining`;
+        cooldownEl.style.color = 'var(--red, #f44336)';
       } else {
         cooldownEl.textContent = 'Ready to request';
-        cooldownEl.style.color = 'var(--green)';
+        cooldownEl.style.color = 'var(--green, #4caf50)';
       }
     } else {
       cooldownEl.textContent = 'Ready to request';
-      cooldownEl.style.color = 'var(--green)';
+      cooldownEl.style.color = 'var(--green, #4caf50)';
     }
-  } catch (err) {
-    document.getElementById('faucet-cooldown').textContent = 'Unable to check status';
+  } catch (_) {
+    cooldownEl.textContent = 'Connect to a node first';
+    cooldownEl.style.color = '';
   }
 }
 
