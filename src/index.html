@@ -28,6 +28,7 @@
       <button class="nav-btn active" data-tab="node">Node</button>
       <button class="nav-btn" data-tab="wallet">Wallet</button>
       <button class="nav-btn" data-tab="send">Send</button>
+      <button class="nav-btn" data-tab="faucet">Faucet</button>
       <button class="nav-btn" data-tab="explorer">Explorer</button>
       <button class="nav-btn" data-tab="validators">Validators</button>
       <button class="nav-btn" data-tab="staking">Staking</button>
@@ -198,6 +199,40 @@
         </div>
       </section>
 
+      <!-- ===== FAUCET TAB ===== -->
+      <section id="tab-faucet" class="tab">
+        <h2>Test AURA Faucet</h2>
+
+        <div class="card">
+          <h3>Request Test AURA</h3>
+          <p class="muted">Get 100 AURA testnet tokens. One request per address per day.</p>
+
+          <div id="faucet-no-wallet" class="error-msg" style="display:none;">Load a wallet in the Wallet tab first.</div>
+
+          <div id="faucet-form" style="display:none;">
+            <div class="form-grid">
+              <label>Your Wallet Address</label>
+              <code id="faucet-address" class="muted"></code>
+              <label>Cooldown Status</label>
+              <span id="faucet-cooldown" class="muted">—</span>
+            </div>
+
+            <div class="btn-row" style="margin-top:16px;">
+              <button class="btn btn-primary" id="btn-faucet-request">Request 100 AURA</button>
+              <button class="btn btn-sm" id="btn-faucet-check">Check Status</button>
+            </div>
+
+            <div id="faucet-result" class="code-block" style="display:none;"></div>
+            <div id="faucet-error" class="error-msg" style="display:none;"></div>
+          </div>
+
+          <div id="faucet-info-card" class="card" style="margin-top:16px; background:rgba(63, 185, 80, 0.1); border-color:var(--green);">
+            <h4 style="color:var(--green); margin-top:0;">Faucet Balance</h4>
+            <div id="faucet-balance-info" class="muted">Loading…</div>
+          </div>
+        </div>
+      </section>
+
       <!-- ===== EXPLORER TAB ===== -->
       <section id="tab-explorer" class="tab">
         <h2>Block Explorer</h2>
@@ -239,16 +274,18 @@
         <div class="card">
           <div class="toolbar">
             <button class="btn btn-sm btn-primary" id="btn-val-refresh">Refresh</button>
+            <span class="muted" style="margin-left:12px;">Sorted by blocks produced (descending)</span>
           </div>
           <div id="validators-error" class="error-msg" style="display:none;"></div>
           <table id="validators-table" class="data-table">
             <thead>
               <tr>
                 <th>Address</th>
+                <th>Status</th>
                 <th>Stake</th>
                 <th>Blocks Produced</th>
                 <th>Reputation</th>
-                <th>Jailed</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody id="validators-tbody"></tbody>

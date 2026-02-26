@@ -4,11 +4,30 @@
 
 'use strict';
 
+// ─── Visible error overlay (debug) ──────────────────────────────────────────
+(function () {
+  function _showOverlayError(msg, top) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;' + (top ? 'top:0' : 'top:28px') +
+      ';left:0;right:0;background:#b00;color:#fff;padding:5px 10px;' +
+      'z-index:99999;font-size:11px;font-family:monospace;word-break:break-all;';
+    d.textContent = msg;
+    document.body ? document.body.appendChild(d) :
+      document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(d); });
+  }
+  window.addEventListener('error', function (e) {
+    _showOverlayError('JS Error: ' + e.message + ' (' + (e.filename || '?') + ':' + e.lineno + ')', true);
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    _showOverlayError('Promise Error: ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)), false);
+  });
+}());
+
 // ---------------------------------------------------------------------------
 // Tauri bridge helpers
 // ---------------------------------------------------------------------------
 
-const isTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+const _appInTauri = typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 
 async function invoke(cmd, args = {}) {
   // Try Tauri v2 core.invoke first
@@ -63,6 +82,11 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (tabName === 'explorer')   refreshExplorer();
     if (tabName === 'validators') refreshValidators();
     if (tabName === 'send')       updateSendTab();
+    if (tabName === 'faucet') {
+      updateFaucetTab();
+      checkFaucetStatus();
+      refreshFaucetBalance();
+    }
   });
 });
 
@@ -91,7 +115,7 @@ async function connectNode() {
   if (remoteUrl) {
     // Remote node mode — store URL then probe via Tauri or direct fetch
     State.rpcUrl = remoteUrl;
-    if (isTauri) {
+    if (_appInTauri) {
       try {
         const result = await invoke('start_node', {
           args: {
@@ -604,6 +628,143 @@ function showBlockDetail(block) {
 }
 
 // ---------------------------------------------------------------------------
+// Faucet tab
+// ---------------------------------------------------------------------------
+
+document.getElementById('btn-faucet-request')?.addEventListener('click', requestFaucet);
+document.getElementById('btn-faucet-check')?.addEventListener('click', checkFaucetStatus);
+
+function updateFaucetTab() {
+  const noWallet = document.getElementById('faucet-no-wallet');
+  const form = document.getElementById('faucet-form');
+  if (State.wallet) {
+    noWallet.style.display = 'none';
+    form.style.display = 'block';
+    document.getElementById('faucet-address').textContent = State.wallet.address;
+  } else {
+    noWallet.style.display = 'block';
+    form.style.display = 'none';
+  }
+}
+
+async function requestFaucet() {
+  const errEl = document.getElementById('faucet-error');
+  const resultEl = document.getElementById('faucet-result');
+  errEl.style.display = 'none';
+  resultEl.style.display = 'none';
+
+  if (!State.wallet) {
+    errEl.textContent = 'No wallet loaded.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = document.getElementById('btn-faucet-request');
+  btn.disabled = true;
+  btn.textContent = 'Requesting…';
+
+  try {
+    const response = await fetch(`${rpcBase()}/faucet`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: State.wallet.address }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: response.statusText }));
+      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    resultEl.textContent = `Success! Received 100 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: 100.00000000 AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
+    resultEl.style.display = 'block';
+
+    // Refresh balance after a short delay
+    setTimeout(() => refreshBalance(), 2000);
+
+    // Check faucet status
+    setTimeout(checkFaucetStatus, 2000);
+  } catch (err) {
+    errEl.textContent = `Faucet request failed: ${err.message}`;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Request 100 AURA';
+  }
+}
+
+async function checkFaucetStatus() {
+  if (!State.wallet) return;
+
+  try {
+    const response = await fetch(`${rpcBase()}/faucet/${State.wallet.address}`, {
+      method: 'GET',
+    });
+
+    const data = await response.json().catch(() => ({}));
+    const cooldownEl = document.getElementById('faucet-cooldown');
+
+    if (data.last_request) {
+      const lastTime = new Date(data.last_request);
+      const nextTime = new Date(lastTime.getTime() + 24 * 60 * 60 * 1000);
+      const now = new Date();
+
+      if (now < nextTime) {
+        const hoursLeft = Math.ceil((nextTime - now) / (60 * 60 * 1000));
+        cooldownEl.textContent = `Cooldown active (${hoursLeft} hours remaining)`;
+        cooldownEl.style.color = 'var(--red)';
+      } else {
+        cooldownEl.textContent = 'Ready to request';
+        cooldownEl.style.color = 'var(--green)';
+      }
+    } else {
+      cooldownEl.textContent = 'Ready to request';
+      cooldownEl.style.color = 'var(--green)';
+    }
+  } catch (err) {
+    document.getElementById('faucet-cooldown').textContent = 'Unable to check status';
+  }
+}
+
+async function refreshFaucetBalance() {
+  try {
+    const data = await rpcFetch('/faucet');
+    const balanceInfo = document.getElementById('faucet-balance-info');
+    balanceInfo.textContent = `Available: ${fmt(data.balance || 0)} AURA\nNext replenish: ${data.next_replenish || 'Unknown'}`;
+  } catch (_) {
+    document.getElementById('faucet-balance-info').textContent = 'Unable to load faucet info';
+  }
+}
+
+// Override loadWallet to update faucet tab
+const originalLoadWallet = loadWallet;
+loadWallet = function(kp) {
+  originalLoadWallet(kp);
+  updateFaucetTab();
+  checkFaucetStatus();
+  refreshFaucetBalance();
+};
+
+// Override clearWallet to update faucet tab
+const originalClearWallet = clearWallet;
+clearWallet = function() {
+  originalClearWallet();
+  updateFaucetTab();
+};
+
+// Update faucet tab when switching to it
+document.addEventListener('DOMContentLoaded', () => {
+  const faucetBtn = document.querySelector('[data-tab="faucet"]');
+  if (faucetBtn) {
+    faucetBtn.addEventListener('click', () => {
+      updateFaucetTab();
+      checkFaucetStatus();
+      refreshFaucetBalance();
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Validators tab
 // ---------------------------------------------------------------------------
 
@@ -618,6 +779,13 @@ async function refreshValidators() {
     const data = await rpcFetch('/validators');
     const validators = Array.isArray(data) ? data : (data.validators ?? []);
 
+    // Sort validators by blocks_produced (descending)
+    validators.sort((a, b) => {
+      const prodA = a.blocks_produced ?? a.blocks ?? 0;
+      const prodB = b.blocks_produced ?? b.blocks ?? 0;
+      return prodB - prodA;
+    });
+
     tbody.innerHTML = '';
     validators.forEach(v => {
       const tr = document.createElement('tr');
@@ -626,24 +794,40 @@ async function refreshValidators() {
       const produced = v.blocks_produced ?? v.blocks ?? '—';
       const rep      = v.reputation_score ?? v.reputation ?? '—';
       const jailed   = v.is_jailed || v.jailed ? 'Yes' : 'No';
+      const isActive = !jailed || jailed === 'No' ? 'Active' : 'Jailed';
+      const statusColor = isActive === 'Active' ? 'var(--green)' : 'var(--red)';
 
       tr.innerHTML = `
-        <td title="${addr}">${truncate(addr, 28)}</td>
+        <td title="${addr}">${truncate(addr, 24)}</td>
+        <td><span style="color:${statusColor}; font-weight:bold;">● ${isActive}</span></td>
         <td>${stake}</td>
-        <td>${produced}</td>
+        <td><strong>${produced}</strong></td>
         <td>${rep}</td>
-        <td style="color:${jailed === 'Yes' ? 'var(--red)' : 'var(--green)'}">${jailed}</td>
+        <td><button class="btn btn-sm" onclick="stakeToValidator('${addr}')">Stake</button></td>
       `;
       tbody.appendChild(tr);
     });
 
     if (validators.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="text-align:center;padding:20px;">No validators found. Connect to a node first.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="muted" style="text-align:center;padding:20px;">No validators found. Connect to a node first.</td></tr>';
     }
   } catch (err) {
     errEl.textContent = `Could not fetch validators: ${err.message}. Connect to a node first.`;
     errEl.style.display = 'block';
   }
+}
+
+/** Pre-fill Send tab for staking to a validator */
+function stakeToValidator(validatorAddr) {
+  // Switch to Staking tab
+  const stakingBtn = document.querySelector('[data-tab="staking"]');
+  if (stakingBtn) stakingBtn.click();
+
+  // Pre-fill the delegate form
+  document.getElementById('delegate-to').value = validatorAddr;
+  document.getElementById('delegate-amount').value = '100.00000000';
+  document.getElementById('delegate-fee').value = '0.00100000';
+  document.getElementById('delegate-amount').focus();
 }
 
 // ---------------------------------------------------------------------------

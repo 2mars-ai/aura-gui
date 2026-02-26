@@ -372,6 +372,21 @@ code.copyable:hover { border-color: var(--accent); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ── Table buttons ────────────────────────────────────────────────────────── */
+.data-table .btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* ── Status indicators in tables ──────────────────────────────────────────── */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
 /* ── Responsive clamp ─────────────────────────────────────────────────────── */
 @media (max-width: 700px) {
   .form-grid { grid-template-columns: 1fr; }
