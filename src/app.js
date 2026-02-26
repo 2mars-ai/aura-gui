@@ -104,7 +104,7 @@ const statsCard    = document.getElementById('node-stats-card');
 btnStart.addEventListener('click', connectNode);
 btnStop.addEventListener('click', stopNode);
 
-// Validator mode checkbox — show/hide address info
+// Validator mode checkbox — show/hide address info + persist setting
 document.getElementById('cfg-validator-mode')?.addEventListener('change', function() {
   const info = document.getElementById('validator-mode-info');
   if (info) info.style.display = this.checked ? 'block' : 'none';
@@ -112,6 +112,7 @@ document.getElementById('cfg-validator-mode')?.addEventListener('change', functi
   if (this.checked && State.wallet && addrEl) {
     addrEl.textContent = `Validator address: ${State.wallet.address}`;
   }
+  try { localStorage.setItem('aura_validator_mode', this.checked ? '1' : '0'); } catch (_) {}
 });
 
 async function connectNode() {
@@ -414,6 +415,14 @@ function loadWallet(kp) {
     privateKeyHex: kp.private_key_hex,
     publicKeyHex: kp.public_key_hex,
   };
+  // Persist wallet across restarts
+  try {
+    localStorage.setItem('aura_wallet', JSON.stringify({
+      address: kp.address,
+      private_key_hex: kp.private_key_hex,
+      public_key_hex: kp.public_key_hex,
+    }));
+  } catch (_) {}
   const placeholder = document.getElementById('wallet-placeholder');
   if (placeholder) placeholder.style.display = 'none';
   document.getElementById('wallet-empty').style.display = 'none';
@@ -461,6 +470,7 @@ async function refreshBalance() {
 
 function clearWallet() {
   State.wallet = null;
+  try { localStorage.removeItem('aura_wallet'); } catch (_) {}
   const placeholder = document.getElementById('wallet-placeholder');
   if (placeholder) placeholder.style.display = 'block';
   document.getElementById('wallet-empty').style.display = 'block';
@@ -937,6 +947,28 @@ async function init() {
     const ddEl = document.getElementById('cfg-datadir');
     if (ddEl) ddEl.value = '%USERPROFILE%\\.auracore\\data';
   }
+
+  // Restore saved wallet and validator mode from previous session
+  try {
+    const savedWallet = localStorage.getItem('aura_wallet');
+    if (savedWallet) {
+      const kp = JSON.parse(savedWallet);
+      if (kp && kp.address && kp.private_key_hex) {
+        loadWallet(kp);
+      }
+    }
+    const savedValidatorMode = localStorage.getItem('aura_validator_mode');
+    const vmCheckbox = document.getElementById('cfg-validator-mode');
+    if (savedValidatorMode === '1' && vmCheckbox) {
+      vmCheckbox.checked = true;
+      const info = document.getElementById('validator-mode-info');
+      if (info) info.style.display = 'block';
+      if (State.wallet) {
+        const addrEl = document.getElementById('validator-mode-address');
+        if (addrEl) addrEl.textContent = `Validator address: ${State.wallet.address}`;
+      }
+    }
+  } catch (_) {}
 
   // Check if there is already a node running from a previous session
   try {
