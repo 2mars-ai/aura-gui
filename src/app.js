@@ -79,14 +79,15 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById(`tab-${tabName}`).classList.add('active');
     // Trigger a data refresh when switching to a data tab
-    if (tabName === 'explorer')   refreshExplorer();
-    if (tabName === 'validators') refreshValidators();
-    if (tabName === 'send')       updateSendTab();
+    if (tabName === 'explorer')     refreshExplorer();
+    if (tabName === 'validators')   refreshValidators();
+    if (tabName === 'send')         updateSendTab();
     if (tabName === 'faucet') {
       updateFaucetTab();
       checkFaucetStatus();
       refreshFaucetBalance();
     }
+    if (tabName === 'joinnetwork')  loadJoinNetwork();
   });
 });
 
@@ -898,6 +899,7 @@ async function init() {
   initStakingTab();
   initMultiSigTab();
   initTimelockTab();
+  initJoinNetworkTab();
 }
 
 
@@ -1131,3 +1133,141 @@ function initTimelockTab() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ---------------------------------------------------------------------------
+// JOIN NETWORK TAB
+// ---------------------------------------------------------------------------
+
+/**
+ * Switch to a named tab programmatically.
+ * Equivalent to clicking the sidebar nav button for that tab.
+ */
+function showTab(tabName) {
+  var btn = document.querySelector('.nav-btn[data-tab="' + tabName + '"]');
+  if (btn) btn.click();
+}
+
+// Internal state for the auto-refresh countdown timer
+var _jnRefreshTimer = null;
+var _jnCountdown = 30;
+var _jnCountdownTimer = null;
+
+function initJoinNetworkTab() {
+  var btnCheckStatus = document.getElementById('btn-jn-check-status');
+  if (btnCheckStatus) {
+    btnCheckStatus.addEventListener('click', checkJoinNetworkStatus);
+  }
+
+  // Keep wallet address in sync
+  document.addEventListener('walletLoaded', updateJoinNetworkWalletAddress);
+  document.addEventListener('walletCleared', updateJoinNetworkWalletAddress);
+}
+
+function loadJoinNetwork() {
+  updateJoinNetworkWalletAddress();
+  refreshNetworkStats();
+  startJoinNetworkAutoRefresh();
+}
+
+function updateJoinNetworkWalletAddress() {
+  var el = document.getElementById('jn-wallet-address');
+  if (!el) return;
+  if (State.wallet && State.wallet.address) {
+    el.textContent = State.wallet.address;
+    el.style.color = 'var(--text-code)';
+  } else {
+    el.textContent = 'Create a wallet first';
+    el.style.color = 'var(--text-muted)';
+  }
+}
+
+async function refreshNetworkStats() {
+  var heightEl    = document.getElementById('jn-stat-height');
+  var validatorEl = document.getElementById('jn-stat-validators');
+  var peersEl     = document.getElementById('jn-stat-peers');
+  var errEl       = document.getElementById('jn-stats-error');
+  if (!heightEl) return;
+
+  if (errEl) errEl.style.display = 'none';
+
+  try {
+    var data = await rpcFetch('/status');
+    heightEl.textContent    = data.block_height ?? data.height ?? '—';
+    validatorEl.textContent = data.validator_count ?? '—';
+    peersEl.textContent     = data.peer_count ?? data.peers ?? '—';
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = 'Could not reach network: ' + err.message;
+      errEl.style.display = 'block';
+    }
+    heightEl.textContent    = '—';
+    validatorEl.textContent = '—';
+    peersEl.textContent     = '—';
+  }
+}
+
+function startJoinNetworkAutoRefresh() {
+  // Clear any existing timers
+  if (_jnRefreshTimer)   { clearInterval(_jnRefreshTimer);   _jnRefreshTimer = null; }
+  if (_jnCountdownTimer) { clearInterval(_jnCountdownTimer); _jnCountdownTimer = null; }
+
+  _jnCountdown = 30;
+  updateCountdownDisplay();
+
+  // Countdown ticker (every second)
+  _jnCountdownTimer = setInterval(function () {
+    _jnCountdown -= 1;
+    if (_jnCountdown < 0) _jnCountdown = 30;
+    updateCountdownDisplay();
+  }, 1000);
+
+  // Stats refresh (every 30 seconds)
+  _jnRefreshTimer = setInterval(function () {
+    _jnCountdown = 30;
+    refreshNetworkStats();
+  }, 30000);
+}
+
+function updateCountdownDisplay() {
+  var el = document.getElementById('jn-refresh-countdown');
+  if (el) el.textContent = _jnCountdown + 's';
+}
+
+async function checkJoinNetworkStatus() {
+  var btn     = document.getElementById('btn-jn-check-status');
+  var resultEl = document.getElementById('jn-status-result');
+  var errEl   = document.getElementById('jn-status-error');
+
+  if (!resultEl || !errEl) return;
+
+  resultEl.style.display = 'none';
+  errEl.style.display    = 'none';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+
+  try {
+    var data = await rpcFetch('/status');
+    var height     = data.block_height ?? data.height ?? '—';
+    var peers      = data.peer_count ?? data.peers ?? '—';
+    var validators = data.validator_count ?? '—';
+    var chainId    = data.chain_id ?? '—';
+    var version    = data.version ?? '—';
+
+    resultEl.textContent =
+      'Network Status: ONLINE\n' +
+      'Chain ID:        ' + chainId + '\n' +
+      'Block Height:    ' + height + '\n' +
+      'Active Peers:    ' + peers + '\n' +
+      'Validators:      ' + validators + '\n' +
+      'Node Version:    ' + version;
+    resultEl.style.display = 'block';
+
+    // Also refresh the stats card
+    refreshNetworkStats();
+  } catch (err) {
+    errEl.textContent = 'Network unreachable: ' + err.message + '. Make sure the node is running and accessible.';
+    errEl.style.display = 'block';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Check Network Status'; }
+  }
+}
