@@ -274,16 +274,38 @@ async fn probe_rpc(url: &str) -> NodeStatusResult {
                 Ok(v) => v,
                 Err(_) => serde_json::Value::Null,
             };
+            // /status field names: chain_height, active_validators, total_supply, version
+            // Also accept alternate names for forward compatibility.
+            let block_height = json["chain_height"].as_u64()
+                .or_else(|| json["block_height"].as_u64())
+                .or_else(|| json["total_blocks"].as_u64())
+                .or_else(|| json["height"].as_u64());
+            let validator_count = json["active_validators"].as_u64()
+                .or_else(|| json["validator_count"].as_u64());
+            let peer_count = json["peer_count"].as_u64()
+                .or_else(|| json["peers"].as_u64());
+            // chain_id lives in /health, not /status — fetch it separately.
+            let chain_id: Option<String> = if let Some(id) = json["chain_id"].as_str() {
+                Some(id.to_string())
+            } else if let Ok(hr) = client.get(format!("{}/health", url)).send().await {
+                if let Ok(hj) = hr.json::<serde_json::Value>().await {
+                    hj["chain_id"].as_str().map(String::from)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
             NodeStatusResult {
                 running: false, // overwritten by caller
                 pid: None,
                 rpc_url: Some(url.to_string()),
                 connected: true,
-                block_height: json["block_height"].as_u64().or_else(|| json["height"].as_u64()),
-                peer_count: json["peer_count"].as_u64().or_else(|| json["peers"].as_u64()),
-                validator_count: json["validator_count"].as_u64(),
+                block_height,
+                peer_count,
+                validator_count,
                 total_supply: json["total_supply"].as_f64(),
-                chain_id: json["chain_id"].as_str().map(String::from),
+                chain_id,
                 version: json["version"].as_str().map(String::from),
             }
         }

@@ -261,10 +261,11 @@ async function refreshChainStats() {
       } else if (result.running) {
         setNodeIndicator(null, 'Starting…');
       } else {
-        // Try direct RPC fetch as fallback
+        // Try direct RPC fetch as fallback (when Tauri IPC can't probe)
         try {
           const data = await rpcFetch('/status');
-          setNodeIndicator(true, `Block ${data.block_height ?? data.height ?? '?'}`);
+          const h = data.chain_height ?? data.block_height ?? data.height ?? '?';
+          setNodeIndicator(true, `Block ${h}`);
           statsCard.style.display = 'block';
           fillStatsFromRpc(data);
           hideNodeError();
@@ -286,9 +287,10 @@ function fillStats(result) {
 }
 
 function fillStatsFromRpc(data) {
-  document.getElementById('stat-height').textContent     = data.block_height ?? data.height ?? '—';
+  // /status returns chain_height + active_validators (not block_height / validator_count)
+  document.getElementById('stat-height').textContent     = data.chain_height ?? data.block_height ?? data.height ?? '—';
   document.getElementById('stat-peers').textContent      = data.peer_count ?? data.peers ?? '—';
-  document.getElementById('stat-validators').textContent = data.validator_count ?? '—';
+  document.getElementById('stat-validators').textContent = data.active_validators ?? data.validator_count ?? '—';
   document.getElementById('stat-supply').textContent     = fmt(data.total_supply);
   document.getElementById('stat-chainid').textContent    = data.chain_id ?? '—';
   document.getElementById('stat-version').textContent    = data.version ?? '—';
@@ -1192,8 +1194,8 @@ async function refreshNetworkStats() {
 
   try {
     var data = await rpcFetch('/status');
-    heightEl.textContent    = data.block_height ?? data.height ?? '—';
-    validatorEl.textContent = data.validator_count ?? '—';
+    heightEl.textContent    = data.chain_height ?? data.block_height ?? data.height ?? '—';
+    validatorEl.textContent = data.active_validators ?? data.validator_count ?? '—';
     peersEl.textContent     = data.peer_count ?? data.peers ?? '—';
   } catch (err) {
     if (errEl) {
@@ -1247,9 +1249,9 @@ async function checkJoinNetworkStatus() {
 
   try {
     var data = await rpcFetch('/status');
-    var height     = data.block_height ?? data.height ?? '—';
+    var height     = data.chain_height ?? data.block_height ?? data.height ?? '—';
     var peers      = data.peer_count ?? data.peers ?? '—';
-    var validators = data.validator_count ?? '—';
+    var validators = data.active_validators ?? data.validator_count ?? '—';
     var chainId    = data.chain_id ?? '—';
     var version    = data.version ?? '—';
 
