@@ -677,7 +677,7 @@ async function requestFaucet() {
     }
 
     const data = await response.json();
-    resultEl.textContent = `Success! Received 100 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: 100.00000000 AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
+    resultEl.textContent = `Success! Received 1000 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: 1000.00000000 AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
     resultEl.style.display = 'block';
 
     // Refresh balance after a short delay
@@ -690,7 +690,7 @@ async function requestFaucet() {
     errEl.style.display = 'block';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Request 100 AURA';
+    btn.textContent = 'Request 1000 AURA';
   }
 }
 
