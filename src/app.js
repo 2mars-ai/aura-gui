@@ -51,7 +51,7 @@ async function invoke(cmd, args = {}) {
 // ---------------------------------------------------------------------------
 
 const State = {
-  rpcUrl: 'http://89.167.89.226:8545',  // default: live ARM testnet node 1
+  rpcUrl: 'http://localhost:8545',  // always local node
   nodeRunning: false,
   wallet: null,          // { address, privateKeyHex, publicKeyHex }
   pollInterval: null,
@@ -87,128 +87,59 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
       checkFaucetStatus();
       refreshFaucetBalance();
     }
-    if (tabName === 'joinnetwork')  loadJoinNetwork();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Node tab
+// Node tab — always-on local validator, no configuration needed
 // ---------------------------------------------------------------------------
 
-const btnStart     = document.getElementById('btn-start');
-const btnStop      = document.getElementById('btn-stop');
-const nodeDot      = document.getElementById('node-dot');
-const nodeLabel    = document.getElementById('node-label');
-const statsCard    = document.getElementById('node-stats-card');
+const nodeDot   = document.getElementById('node-dot');
+const nodeLabel = document.getElementById('node-label');
+const statsCard = document.getElementById('node-stats-card');
 
-btnStart.addEventListener('click', connectNode);
-btnStop.addEventListener('click', stopNode);
-
-// Validator mode checkbox — show/hide address info + persist setting
-document.getElementById('cfg-validator-mode')?.addEventListener('change', function() {
-  const info = document.getElementById('validator-mode-info');
-  if (info) info.style.display = this.checked ? 'block' : 'none';
-  const addrEl = document.getElementById('validator-mode-address');
-  if (this.checked && State.wallet && addrEl) {
-    addrEl.textContent = `Validator address: ${State.wallet.address}`;
-  }
-  try { localStorage.setItem('aura_validator_mode', this.checked ? '1' : '0'); } catch (_) {}
+document.getElementById('btn-restart-node')?.addEventListener('click', () => {
+  invoke('stop_node').catch(() => {}).finally(() => setTimeout(autoStartLocalNode, 800));
 });
 
-async function connectNode() {
-  btnStart.disabled = true;
-  btnStart.textContent = 'Connecting…';
-  hideNodeError();
-
-  // Remote URL takes priority if filled in
-  const remoteUrlEl = document.getElementById('cfg-remote-url');
-  const remoteUrl = remoteUrlEl ? remoteUrlEl.value.trim() : '';
-
-  if (remoteUrl) {
-    // Remote node mode — store URL then probe via Tauri or direct fetch
-    State.rpcUrl = remoteUrl;
-    if (_appInTauri) {
-      try {
-        const result = await invoke('start_node', {
-          args: {
-            remote_url: remoteUrl,
-            binary_path: null,
-            data_dir: null,
-            rpc_port: null,
-            p2p_port: null,
-            node_id: null,
-            bootstrap: null,
-          }
-        });
-        handleNodeResult(result, false);
-      } catch (err) {
-        showNodeError(err.toString());
-      }
-    } else {
-      // Fallback: direct fetch (works without Tauri IPC for read-only status)
-      try {
-        const data = await rpcFetch('/status');
-        handleNodeResult({
-          connected: true, running: false, rpc_url: remoteUrl,
-          block_height: data.block_height ?? data.height,
-          peer_count: data.peer_count ?? data.peers,
-          validator_count: data.validator_count,
-          total_supply: data.total_supply,
-          chain_id: data.chain_id,
-          version: data.version,
-        }, false);
-      } catch (err) {
-        showNodeError('Node unreachable: ' + err.message);
-      }
-    }
-  } else {
-    // Local subprocess mode
-    const binary   = document.getElementById('cfg-binary').value.trim() || 'auracore';
-    const dataDir  = document.getElementById('cfg-datadir').value.trim()
-      || getDefaultDataDir();
-    const rpcPort  = parseInt(document.getElementById('cfg-rpc').value, 10) || 8545;
-    const p2pPort  = parseInt(document.getElementById('cfg-p2p').value, 10) || 30341;
-    const nodeId   = document.getElementById('cfg-nodeid').value.trim() || 'desktop-wallet';
-    const bootstrap = document.getElementById('cfg-bootstrap').value.trim();
-    const validatorMode = document.getElementById('cfg-validator-mode')?.checked ?? false;
-    const validatorAddress = validatorMode && State.wallet ? State.wallet.address : null;
-
-    State.rpcUrl = `http://localhost:${rpcPort}`;
-
-    try {
-      const result = await invoke('start_node', {
-        args: {
-          binary_path: binary !== 'auracore' ? binary : null,
-          data_dir: dataDir,
-          rpc_port: rpcPort,
-          p2p_port: p2pPort,
-          node_id: nodeId,
-          bootstrap: bootstrap || null,
-          remote_url: null,
-          validator_mode: validatorMode,
-          validator_address: validatorAddress,
-        }
-      });
-      handleNodeResult(result, true);
-      if (result && result.running) {
-        // Give the process a moment to open its RPC port
-        setTimeout(refreshChainStats, 2500);
-      }
-    } catch (err) {
-      showNodeError(err.toString());
-    }
-  }
-
-  // If still showing "offline" after attempt, show a message
-  if (nodeDot.classList.contains('dot-off')) {
-    nodeLabel.textContent = 'Could not connect — check node URL';
-  }
-
-  btnStart.disabled = false;
-  btnStart.textContent = 'Connect';
+function updateNodeValidatorAddr(addr) {
+  const el = document.getElementById('node-validator-addr');
+  if (el) el.textContent = addr ? `Validator: ${addr}` : 'Load a wallet to activate validator mode';
 }
 
-function handleNodeResult(result, localMode) {
+async function autoStartLocalNode() {
+  const validatorAddress = State.wallet ? State.wallet.address : null;
+  State.rpcUrl = 'http://localhost:8545';
+  setNodeIndicator(null, 'Starting…');
+  updateNodeValidatorAddr(validatorAddress);
+  if (!_appInTauri) {
+    // Running in browser without Tauri — show offline, polling will detect the node
+    setNodeIndicator(false, 'Node offline');
+    return;
+  }
+  try {
+    const result = await invoke('start_node', {
+      args: {
+        binary_path: null,
+        data_dir: getDefaultDataDir(),
+        rpc_port: 8545,
+        p2p_port: 30341,
+        node_id: validatorAddress || 'desktop-wallet',
+        bootstrap: '/ip4/88.198.75.149/tcp/30333,/ip4/89.167.89.226/tcp/30333',
+        remote_url: null,
+        validator_mode: !!validatorAddress,
+        validator_address: validatorAddress,
+      }
+    });
+    handleNodeResult(result);
+    if (result && result.running) setTimeout(refreshChainStats, 2500);
+  } catch (err) {
+    setNodeIndicator(false, 'Failed to start');
+    showNodeError(err.toString());
+  }
+}
+
+function handleNodeResult(result) {
   if (!result) return;
   if (result.connected) {
     setNodeIndicator(true, null);
@@ -217,27 +148,9 @@ function handleNodeResult(result, localMode) {
     startStatusPoll();
   } else if (result.running) {
     setNodeIndicator(null, 'Starting…');
-    statsCard.style.display = 'none';
     startStatusPoll();
   } else {
-    setNodeIndicator(false, localMode ? 'Failed to start' : 'Node unreachable');
-    statsCard.style.display = 'none';
-  }
-  btnStop.disabled = !result.running;
-}
-
-async function stopNode() {
-  btnStop.disabled = true;
-  try {
-    await invoke('stop_node');
-    setNodeIndicator(false, 'Node stopped');
-    stopStatusPoll();
-    statsCard.style.display = 'none';
-    btnStart.disabled = false;
-  } catch (err) {
-    showNodeError(err.toString());
-  } finally {
-    btnStop.disabled = false;
+    setNodeIndicator(false, 'Failed to start');
   }
 }
 
@@ -432,12 +345,9 @@ function loadWallet(kp) {
   document.getElementById('w-balance').textContent = '—';
   updateSendTab();
   refreshBalance();
-  // If validator mode checkbox is checked, update the address display
-  const addrEl = document.getElementById('validator-mode-address');
-  if (addrEl && document.getElementById('cfg-validator-mode')?.checked) {
-    addrEl.textContent = `Validator address: ${kp.address}`;
-  }
   document.dispatchEvent(new Event("walletLoaded"));
+  // Restart local node with the wallet address as validator ID
+  invoke('stop_node').catch(() => {}).finally(() => setTimeout(autoStartLocalNode, 800));
 }
 
 async function refreshBalance() {
@@ -479,6 +389,9 @@ function clearWallet() {
   updateSendTab();
 
   document.dispatchEvent(new Event("walletCleared"));
+  updateNodeValidatorAddr(null);
+  // Restart node without validator mode when wallet is cleared
+  invoke('stop_node').catch(() => {}).finally(() => setTimeout(autoStartLocalNode, 800));
 }
 
 async function exportKeystoreFromWallet() {
@@ -933,74 +846,34 @@ function truncate(str, len) {
 // ---------------------------------------------------------------------------
 
 async function init() {
-  // Set default data dir placeholder
-  try {
-    if (window.__TAURI__?.path) {
-      const home = await window.__TAURI__.path.homeDir();
-      const ddEl = document.getElementById('cfg-datadir');
-      if (ddEl) {
-        ddEl.placeholder = `${home}\\.auracore\\data`;
-        ddEl.value = `${home}\\.auracore\\data`;
-      }
-    }
-  } catch (_) {
-    const ddEl = document.getElementById('cfg-datadir');
-    if (ddEl) ddEl.value = '%USERPROFILE%\\.auracore\\data';
-  }
-
-  // Restore saved wallet and validator mode from previous session
+  // Restore saved wallet from previous session
   try {
     const savedWallet = localStorage.getItem('aura_wallet');
     if (savedWallet) {
       const kp = JSON.parse(savedWallet);
       if (kp && kp.address && kp.private_key_hex) {
-        loadWallet(kp);
-      }
-    }
-    const savedValidatorMode = localStorage.getItem('aura_validator_mode');
-    const vmCheckbox = document.getElementById('cfg-validator-mode');
-    if (savedValidatorMode === '1' && vmCheckbox) {
-      vmCheckbox.checked = true;
-      const info = document.getElementById('validator-mode-info');
-      if (info) info.style.display = 'block';
-      if (State.wallet) {
-        const addrEl = document.getElementById('validator-mode-address');
-        if (addrEl) addrEl.textContent = `Validator address: ${State.wallet.address}`;
-      }
-    }
-  } catch (_) {}
-
-  // Check if there is already a node running from a previous session
-  try {
-    const status = await invoke('get_node_status');
-    if (status) {
-      if (status.connected) {
-        if (status.rpc_url) State.rpcUrl = status.rpc_url;
-        setNodeIndicator(true, `Block ${status.block_height ?? '?'}`);
-        statsCard.style.display = 'block';
-        fillStats(status);
-        startStatusPoll();
-      } else if (status.running) {
-        setNodeIndicator(null, 'Starting…');
-        startStatusPoll();
+        // Restore wallet state without triggering node restart (node starts below)
+        State.wallet = { address: kp.address, privateKeyHex: kp.private_key_hex, publicKeyHex: kp.public_key_hex };
+        const placeholder = document.getElementById('wallet-placeholder');
+        if (placeholder) placeholder.style.display = 'none';
+        document.getElementById('wallet-empty').style.display = 'none';
+        document.getElementById('wallet-loaded').style.display = 'block';
+        document.getElementById('w-address').textContent = kp.address;
+        document.getElementById('w-nonce').textContent = '—';
+        document.getElementById('w-balance').textContent = '—';
+        updateSendTab();
+        refreshBalance();
+        updateNodeValidatorAddr(kp.address);
       }
     }
   } catch (_) {}
 
-  // Auto-connect to the default remote testnet node
-  const remoteUrlEl = document.getElementById('cfg-remote-url');
-  if (remoteUrlEl && !remoteUrlEl.value) {
-    remoteUrlEl.value = 'http://89.167.89.226:8545';
-  }
+  // Always auto-start the local validator node on launch
+  setTimeout(autoStartLocalNode, 300);
 
-  // Auto-connect to default testnet on startup
-  if (remoteUrlEl) {
-    setTimeout(() => connectNode(), 500); // small delay for UI to render
-  }
   initStakingTab();
   initMultiSigTab();
   initTimelockTab();
-  initJoinNetworkTab();
 }
 
 
@@ -1245,141 +1118,3 @@ function initTimelockTab() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
-
-// ---------------------------------------------------------------------------
-// JOIN NETWORK TAB
-// ---------------------------------------------------------------------------
-
-/**
- * Switch to a named tab programmatically.
- * Equivalent to clicking the sidebar nav button for that tab.
- */
-function showTab(tabName) {
-  var btn = document.querySelector('.nav-btn[data-tab="' + tabName + '"]');
-  if (btn) btn.click();
-}
-
-// Internal state for the auto-refresh countdown timer
-var _jnRefreshTimer = null;
-var _jnCountdown = 30;
-var _jnCountdownTimer = null;
-
-function initJoinNetworkTab() {
-  var btnCheckStatus = document.getElementById('btn-jn-check-status');
-  if (btnCheckStatus) {
-    btnCheckStatus.addEventListener('click', checkJoinNetworkStatus);
-  }
-
-  // Keep wallet address in sync
-  document.addEventListener('walletLoaded', updateJoinNetworkWalletAddress);
-  document.addEventListener('walletCleared', updateJoinNetworkWalletAddress);
-}
-
-function loadJoinNetwork() {
-  updateJoinNetworkWalletAddress();
-  refreshNetworkStats();
-  startJoinNetworkAutoRefresh();
-}
-
-function updateJoinNetworkWalletAddress() {
-  var el = document.getElementById('jn-wallet-address');
-  if (!el) return;
-  if (State.wallet && State.wallet.address) {
-    el.textContent = State.wallet.address;
-    el.style.color = 'var(--text-code)';
-  } else {
-    el.textContent = 'Create a wallet first';
-    el.style.color = 'var(--text-muted)';
-  }
-}
-
-async function refreshNetworkStats() {
-  var heightEl    = document.getElementById('jn-stat-height');
-  var validatorEl = document.getElementById('jn-stat-validators');
-  var peersEl     = document.getElementById('jn-stat-peers');
-  var errEl       = document.getElementById('jn-stats-error');
-  if (!heightEl) return;
-
-  if (errEl) errEl.style.display = 'none';
-
-  try {
-    var data = await rpcFetch('/status');
-    heightEl.textContent    = data.chain_height ?? data.block_height ?? data.height ?? '—';
-    validatorEl.textContent = data.active_validators ?? data.validator_count ?? '—';
-    peersEl.textContent     = data.peer_count ?? data.peers ?? '—';
-  } catch (err) {
-    if (errEl) {
-      errEl.textContent = 'Could not reach network: ' + err.message;
-      errEl.style.display = 'block';
-    }
-    heightEl.textContent    = '—';
-    validatorEl.textContent = '—';
-    peersEl.textContent     = '—';
-  }
-}
-
-function startJoinNetworkAutoRefresh() {
-  // Clear any existing timers
-  if (_jnRefreshTimer)   { clearInterval(_jnRefreshTimer);   _jnRefreshTimer = null; }
-  if (_jnCountdownTimer) { clearInterval(_jnCountdownTimer); _jnCountdownTimer = null; }
-
-  _jnCountdown = 30;
-  updateCountdownDisplay();
-
-  // Countdown ticker (every second)
-  _jnCountdownTimer = setInterval(function () {
-    _jnCountdown -= 1;
-    if (_jnCountdown < 0) _jnCountdown = 30;
-    updateCountdownDisplay();
-  }, 1000);
-
-  // Stats refresh (every 30 seconds)
-  _jnRefreshTimer = setInterval(function () {
-    _jnCountdown = 30;
-    refreshNetworkStats();
-  }, 30000);
-}
-
-function updateCountdownDisplay() {
-  var el = document.getElementById('jn-refresh-countdown');
-  if (el) el.textContent = _jnCountdown + 's';
-}
-
-async function checkJoinNetworkStatus() {
-  var btn     = document.getElementById('btn-jn-check-status');
-  var resultEl = document.getElementById('jn-status-result');
-  var errEl   = document.getElementById('jn-status-error');
-
-  if (!resultEl || !errEl) return;
-
-  resultEl.style.display = 'none';
-  errEl.style.display    = 'none';
-
-  if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
-
-  try {
-    var data = await rpcFetch('/status');
-    var height     = data.chain_height ?? data.block_height ?? data.height ?? '—';
-    var peers      = data.peer_count ?? data.peers ?? '—';
-    var validators = data.active_validators ?? data.validator_count ?? '—';
-    var chainId    = data.chain_id ?? '—';
-    var version    = data.version ?? '—';
-
-    resultEl.textContent =
-      'Network Status: ONLINE\n' +
-      'Chain ID:        ' + chainId + '\n' +
-      'Block Height:    ' + height + '\n' +
-      'Active Peers:    ' + peers + '\n' +
-      'Validators:      ' + validators + '\n' +
-      'Node Version:    ' + version;
-    resultEl.style.display = 'block';
-
-    // Also refresh the stats card
-    refreshNetworkStats();
-  } catch (err) {
-    errEl.textContent = 'Network unreachable: ' + err.message + '. Make sure the node is running and accessible.';
-    errEl.style.display = 'block';
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'Check Network Status'; }
-  }
-}

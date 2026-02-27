@@ -34,7 +34,6 @@
       <button class="nav-btn" data-tab="staking">Staking</button>
       <button class="nav-btn" data-tab="multisig">Multi-sig</button>
       <button class="nav-btn" data-tab="timelock">Time-lock</button>
-      <button class="nav-btn" data-tab="joinnetwork">Join Network</button>
     </nav>
 
     <!-- Content area -->
@@ -42,44 +41,15 @@
 
       <!-- ===== NODE TAB ===== -->
       <section id="tab-node" class="tab active">
-        <h2>Node Management</h2>
+        <h2>Validator Node</h2>
 
         <div class="card">
-          <h3>Remote Node (Testnet)</h3>
-          <p class="muted" style="margin-bottom:12px;">Connect to a running AuraCore node over HTTP. Leave blank to run a local node instead.</p>
-          <div class="form-grid">
-            <label>Remote Node URL</label>
-            <input id="cfg-remote-url" type="text" placeholder="http://89.167.89.226:8545"
-              value="http://89.167.89.226:8545" />
-          </div>
-          <div class="btn-row" style="margin-top:16px;">
-            <button id="btn-start" class="btn btn-primary">Connect</button>
-            <button id="btn-stop" class="btn btn-danger" disabled>Stop Local Node</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Local Node (Advanced)</h3>
-          <p class="muted" style="margin-bottom:12px;">Launch a local auracore process. Requires auracore.exe in the same folder or in PATH. Clear the Remote Node URL above first.</p>
-          <div class="form-grid">
-            <label>Binary Path</label>
-            <input id="cfg-binary" type="text" placeholder="auracore  (or full path to auracore.exe)" value="auracore" />
-
-            <label>Data Directory</label>
-            <input id="cfg-datadir" type="text" placeholder="%USERPROFILE%\.auracore\data" />
-
-            <label>RPC Port</label>
-            <input id="cfg-rpc" type="number" value="8545" min="1" max="65535" />
-
-            <label>P2P Port</label>
-            <input id="cfg-p2p" type="number" value="30341" min="1" max="65535" />
-
-            <label>Node ID</label>
-            <input id="cfg-nodeid" type="text" placeholder="desktop-wallet" value="desktop-wallet" />
-
-            <label>Bootstrap Peers</label>
-            <input id="cfg-bootstrap" type="text"
-              value="/ip4/88.198.75.149/tcp/30333,/ip4/89.167.89.226/tcp/30333" />
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div>
+              <div style="font-size:15px; font-weight:600; margin-bottom:4px;" id="node-status-text">Starting…</div>
+              <div class="muted" style="font-size:12px;" id="node-validator-addr">Load a wallet to activate validator mode</div>
+            </div>
+            <button id="btn-restart-node" class="btn btn-sm">Restart</button>
           </div>
         </div>
 
@@ -452,108 +422,6 @@
         </div>
       </section>
 
-      <!-- ===== JOIN NETWORK TAB ===== -->
-      <section id="tab-joinnetwork" class="tab">
-        <h2>Join Network</h2>
-        <p class="muted" style="margin-bottom:20px;">Follow these four steps to become a validator on the AuraCore testnet.</p>
-
-        <!-- Step 1: Get a Wallet -->
-        <div class="card">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-            <span style="background:var(--accent-dim); color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">1</span>
-            <h3 style="margin:0;">Get a Wallet</h3>
-          </div>
-          <p class="muted" style="margin-bottom:16px;">You need an AuraCore wallet address to receive testnet tokens and register as a validator.</p>
-          <div class="btn-row">
-            <button class="btn btn-primary" onclick="showTab('wallet')">Create Wallet</button>
-          </div>
-          <p class="muted" style="margin-top:12px; font-size:12px;">Already have an address? Skip to step 2.</p>
-        </div>
-
-        <!-- Step 2: Get Testnet AURA -->
-        <div class="card">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-            <span style="background:var(--accent-dim); color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">2</span>
-            <h3 style="margin:0;">Get Testnet AURA</h3>
-          </div>
-          <p class="muted" style="margin-bottom:12px;">Use the faucet to receive free testnet AURA tokens.</p>
-          <div class="form-grid" style="margin-bottom:16px;">
-            <label>Faucet Endpoint</label>
-            <code class="copyable" id="jn-faucet-url" onclick="navigator.clipboard?.writeText(this.textContent); this.style.color='var(--green)'; setTimeout(()=>this.style.color='',1200)">http://89.167.89.226:8545/faucet</code>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" onclick="showTab('faucet')">Go to Faucet</button>
-          </div>
-          <p class="muted" style="margin-top:12px; font-size:12px;">The faucet gives 1,010 AURA per address per day — one claim covers the minimum 1,000 AURA validator stake plus fees.</p>
-        </div>
-
-        <!-- Step 3: Stake & Register -->
-        <div class="card">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-            <span style="background:var(--accent-dim); color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">3</span>
-            <h3 style="margin:0;">Stake &amp; Register</h3>
-          </div>
-          <p class="muted" style="margin-bottom:12px;">Stake at least 1,000 AURA to register your address as a validator.</p>
-          <div class="form-grid" style="margin-bottom:16px;">
-            <label>Your Address</label>
-            <code id="jn-wallet-address" class="muted" style="font-size:12px; word-break:break-all;">Create a wallet first</code>
-            <label>Stake Amount (AURA)</label>
-            <input id="jn-stake-amount" type="number" min="1000" step="1" value="1000" />
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" onclick="showTab('staking')">Go to Staking</button>
-          </div>
-          <p class="muted" style="margin-top:12px; font-size:12px;">Minimum stake: 1,000 AURA. Once staked, your node will be eligible to produce blocks.</p>
-        </div>
-
-        <!-- Step 4: Connect to Network -->
-        <div class="card">
-          <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
-            <span style="background:var(--accent-dim); color:#fff; border-radius:50%; width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; flex-shrink:0;">4</span>
-            <h3 style="margin:0;">Connect to Network</h3>
-          </div>
-          <p class="muted" style="margin-bottom:12px;">Configure your node with the bootstrap peers below to join the testnet.</p>
-          <div class="form-grid" style="margin-bottom:16px;">
-            <label>Bootstrap (x86)</label>
-            <code class="copyable" onclick="navigator.clipboard?.writeText(this.textContent); this.style.color='var(--green)'; setTimeout(()=>this.style.color='',1200)">/ip4/88.198.75.149/tcp/30333</code>
-            <label>Bootstrap (ARM)</label>
-            <code class="copyable" onclick="navigator.clipboard?.writeText(this.textContent); this.style.color='var(--green)'; setTimeout(()=>this.style.color='',1200)">/ip4/89.167.89.226/tcp/30333</code>
-            <label>Chain ID</label>
-            <code class="copyable" onclick="navigator.clipboard?.writeText(this.textContent); this.style.color='var(--green)'; setTimeout(()=>this.style.color='',1200)">aura-testnet-1</code>
-            <label>RPC Endpoint</label>
-            <code class="copyable" onclick="navigator.clipboard?.writeText(this.textContent); this.style.color='var(--green)'; setTimeout(()=>this.style.color='',1200)">http://89.167.89.226:8545</code>
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" id="btn-jn-check-status">Check Network Status</button>
-          </div>
-          <div id="jn-status-result" class="code-block" style="display:none; margin-top:12px;"></div>
-          <div id="jn-status-error" class="error-msg" style="display:none; margin-top:8px;"></div>
-        </div>
-
-        <!-- Network Stats (auto-refresh every 30s) -->
-        <div class="card" style="border-color:var(--accent-dim);">
-          <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-            <h3 style="margin:0;">Network Stats</h3>
-            <span class="muted" style="font-size:12px;">Auto-refresh every 30s &nbsp;<span id="jn-refresh-countdown" style="color:var(--accent); font-family:var(--font-mono);">30s</span></span>
-          </div>
-          <div class="stats-grid">
-            <div class="stat">
-              <span class="stat-label">Block Height</span>
-              <span class="stat-value" id="jn-stat-height">—</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Active Validators</span>
-              <span class="stat-value" id="jn-stat-validators">—</span>
-            </div>
-            <div class="stat">
-              <span class="stat-label">Network Peers</span>
-              <span class="stat-value" id="jn-stat-peers">—</span>
-            </div>
-          </div>
-          <div id="jn-stats-error" class="error-msg" style="display:none; margin-top:12px;"></div>
-        </div>
-
-      </section>
 
     </main>
   </div>
