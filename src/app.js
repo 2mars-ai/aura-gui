@@ -248,7 +248,8 @@ function getDefaultDataDir() {
 
 document.getElementById('btn-gen-keypair').addEventListener('click', generateKeypair);
 document.getElementById('btn-import-privkey').addEventListener('click', importPrivkey);
-document.getElementById('btn-refresh-balance').addEventListener('click', refreshBalance);
+document.getElementById('btn-refresh-balance').addEventListener('click', () => { refreshBalance(); refreshTxHistory(); });
+document.getElementById('btn-refresh-txhistory').addEventListener('click', refreshTxHistory);
 document.getElementById('btn-clear-wallet').addEventListener('click', clearWallet);
 document.getElementById('btn-export-keystore').addEventListener('click', exportKeystoreFromWallet);
 document.getElementById('btn-ks-import').addEventListener('click', importKeystore);
@@ -345,6 +346,7 @@ function loadWallet(kp) {
   document.getElementById('w-balance').textContent = '—';
   updateSendTab();
   refreshBalance();
+  refreshTxHistory();
   document.dispatchEvent(new Event("walletLoaded"));
   // Restart local node with the wallet address as validator ID
   invoke('stop_node').catch(() => {}).finally(() => setTimeout(autoStartLocalNode, 800));
@@ -378,6 +380,42 @@ async function refreshBalance() {
   }
 }
 
+async function refreshTxHistory() {
+  if (!State.wallet) return;
+  const card = document.getElementById('w-tx-history-card');
+  const list = document.getElementById('w-tx-list');
+  if (!card || !list) return;
+  card.style.display = 'block';
+  list.innerHTML = '<span class="muted">Loading…</span>';
+  try {
+    const data = await rpcFetch(`/accounts/${State.wallet.address}/transactions`);
+    const hashes = (data.transactions || []).filter((h, i, a) => a.indexOf(h) === i).slice(-20).reverse();
+    if (hashes.length === 0) {
+      list.innerHTML = '<span class="muted">No transactions yet.</span>';
+      return;
+    }
+    const txs = await Promise.all(hashes.map(h => rpcFetch(`/transactions/${h}`).catch(() => null)));
+    const addr = State.wallet.address;
+    list.innerHTML = txs.filter(Boolean).map(tx => {
+      const out = tx.from === addr;
+      const dir = out ? 'out' : 'in';
+      const label = out ? 'Sent' : 'Recv';
+      const sign  = out ? '−' : '+';
+      const counterparty = out ? tx.to : tx.from;
+      const shortAddr = counterparty.slice(0, 10) + '…' + counterparty.slice(-6);
+      const block = tx.block_height ? `#${tx.block_height}` : 'pending';
+      return `<div class="tx-row">
+        <span class="tx-dir ${dir}">${label}</span>
+        <span class="tx-addr" title="${counterparty}">${shortAddr}</span>
+        <span class="tx-amount ${dir}">${sign}${fmt(tx.amount)} AURA</span>
+        <span class="tx-block">${block}</span>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    list.innerHTML = `<span class="muted">Could not load history: ${err.message}</span>`;
+  }
+}
+
 function clearWallet() {
   State.wallet = null;
   try { localStorage.removeItem('aura_wallet'); } catch (_) {}
@@ -386,6 +424,8 @@ function clearWallet() {
   document.getElementById('wallet-empty').style.display = 'block';
   document.getElementById('wallet-loaded').style.display = 'none';
   document.getElementById('gen-result').style.display = 'none';
+  const txHistCard = document.getElementById('w-tx-history-card');
+  if (txHistCard) txHistCard.style.display = 'none';
   updateSendTab();
 
   document.dispatchEvent(new Event("walletCleared"));
@@ -529,7 +569,7 @@ async function sendTransaction() {
       resultEl.style.display = 'block';
       document.getElementById('send-to').value = '';
       document.getElementById('send-amount').value = '';
-      setTimeout(refreshBalance, 3000);
+      setTimeout(() => { refreshBalance(); refreshTxHistory(); }, 3000);
     } else {
       errEl.textContent = `Node rejected tx: ${JSON.stringify(responseJson)}`;
       errEl.style.display = 'block';
@@ -657,8 +697,8 @@ async function requestFaucet() {
     resultEl.textContent = `Success! Received 1010 AURA\nTransaction Hash: ${data.transaction_hash || data.tx_hash || 'pending'}\nAmount: ${data.amount ?? '1010.00000000'} AURA\n\nThe faucet has a cooldown of 24 hours per address.`;
     resultEl.style.display = 'block';
 
-    // Refresh balance after a short delay
-    setTimeout(() => refreshBalance(), 2000);
+    // Refresh balance and history after a short delay
+    setTimeout(() => { refreshBalance(); refreshTxHistory(); }, 2000);
 
     // Check faucet status
     setTimeout(checkFaucetStatus, 2000);
@@ -860,6 +900,7 @@ async function init() {
         document.getElementById('w-balance').textContent = '—';
         updateSendTab();
         refreshBalance();
+        refreshTxHistory();
         updateNodeValidatorAddr(kp.address);
       }
     }
