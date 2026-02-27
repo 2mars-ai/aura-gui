@@ -480,11 +480,8 @@ async function sendTransaction() {
 
   try {
     // Fetch current nonce
-    let nonce = 1;
-    try {
-      const nd = await rpcFetch(`/accounts/${State.wallet.address}/nonce`);
-      nonce = (nd.nonce ?? nd ?? 0) + 1;
-    } catch (_) {}
+    const nd = await rpcFetch(`/accounts/${State.wallet.address}/nonce`);
+    const nonce = nd.next_nonce ?? (nd.nonce != null ? nd.nonce + 1 : 1);
 
     const timestamp = Math.floor(Date.now() / 1000);
 
@@ -907,11 +904,8 @@ async function sendTypedTx(txType, to, amount, fee, resultId, errorId) {
   hideTabEl(errorId);
   if (!State.wallet) { showTabError(errorId, "No wallet loaded"); return; }
   try {
-    var nonce = 1;
-    try {
-      var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
-      nonce = (nd.nonce != null ? nd.nonce : (nd != null ? nd : 0)) + 1;
-    } catch (_) {}
+    var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
+    var nonce = nd.next_nonce != null ? nd.next_nonce : (nd.nonce != null ? nd.nonce + 1 : 1);
     var timestamp = Math.floor(Date.now() / 1000);
     var signed = await invoke("sign_transaction", {
       args: {
@@ -1073,11 +1067,8 @@ function initTimelockTab() {
     if (!amount) { showTabError("tl-error", "Enter amount"); return; }
     if (!notBefore || notBefore < 1) { showTabError("tl-error", "Enter a valid block height"); return; }
     try {
-      var nonce = 1;
-      try {
-        var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
-        nonce = (nd.nonce != null ? nd.nonce : (nd != null ? nd : 0)) + 1;
-      } catch (_) {}
+      var nd = await rpcFetch("/accounts/" + State.wallet.address + "/nonce");
+      var nonce = nd.next_nonce != null ? nd.next_nonce : (nd.nonce != null ? nd.nonce + 1 : 1);
       var timestamp = Math.floor(Date.now() / 1000);
       var signed = await invoke("sign_transaction", {
         args: {
