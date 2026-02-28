@@ -3,6 +3,8 @@
 
 use std::process::{Child, Command};
 use std::sync::Mutex;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -71,6 +73,11 @@ pub struct StartNodeArgs {
     /// Example: "http://89.167.89.226:8545"
     /// If set, no subprocess is spawned; we just talk to this URL.
     pub remote_url: Option<String>,
+    /// Enable validator mode — node will produce blocks when selected.
+    /// When true, node_id is overridden with validator_address.
+    pub validator_mode: Option<bool>,
+    /// The staked validator address. Required when validator_mode = true.
+    pub validator_address: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -106,10 +113,28 @@ pub async fn start_node(
     let local_url = format!("http://localhost:{}", rpc_port);
     *state.rpc_url.lock().map_err(|e| e.to_string())? = local_url.clone();
 
-    let binary = args.binary_path.clone().unwrap_or_else(|| "auracore".to_string());
+    // Resolve auracore binary: prefer explicit path, then look next to our own
+    // executable (Tauri installs the sidecar there), then fall back to PATH.
+    let binary = args.binary_path.clone().unwrap_or_else(|| {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let sidecar = dir.join("auracore.exe");
+                if sidecar.exists() {
+                    return sidecar.to_string_lossy().to_string();
+                }
+            }
+        }
+        "auracore".to_string()
+    });
     let data_dir = args.data_dir.clone().unwrap_or_else(|| ".auracore/data".to_string());
     let p2p_port = args.p2p_port.unwrap_or(30341);
-    let node_id = args.node_id.clone().unwrap_or_else(|| "desktop-wallet".to_string());
+    let validator_mode = args.validator_mode.unwrap_or(false);
+    let node_id = if validator_mode {
+        args.validator_address.clone()
+            .unwrap_or_else(|| args.node_id.clone().unwrap_or_else(|| "desktop-wallet".to_string()))
+    } else {
+        args.node_id.clone().unwrap_or_else(|| "desktop-wallet".to_string())
+    };
     let bootstrap = args.bootstrap.clone().unwrap_or_else(|| {
         "/ip4/88.198.75.149/tcp/30333,/ip4/89.167.89.226/tcp/30333".to_string()
     });
@@ -150,14 +175,22 @@ pub async fn start_node(
     std::fs::create_dir_all(&data_dir)
         .map_err(|e| format!("Could not create data dir '{}': {e}", data_dir))?;
 
-    let child = Command::new(&binary)
-        .arg("node")
+    let mut cmd = Command::new(&binary);
+    cmd.arg("node")
         .arg(format!("--data-dir={}", data_dir))
         .arg(format!("--port={}", p2p_port))
         .arg(format!("--rpc-port={}", rpc_port))
         .arg(format!("--node-id={}", node_id))
         .arg(format!("--bootstrap={}", bootstrap))
-        .arg(format!("--genesis-validators={}", genesis_validators))
+        .arg(format!("--genesis-validators={}", genesis_validators));
+    if validator_mode {
+        cmd.arg("--validator");
+    }
+    // Suppress the separate console window that Windows opens for subprocesses.
+    #[cfg(windows)]
+    cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+
+    let child = cmd
         .env("RUST_LOG", "warn")
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
