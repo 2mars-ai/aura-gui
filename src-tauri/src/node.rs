@@ -337,7 +337,9 @@ async fn probe_rpc(url: &str) -> NodeStatusResult {
                 block_height,
                 peer_count,
                 validator_count,
-                total_supply: json["total_supply"].as_f64(),
+                total_supply: json["total_supply"].as_f64()
+                    .or_else(|| json["total_supply"].as_str()
+                        .and_then(|s| s.parse::<f64>().ok())),
                 chain_id,
                 version: json["version"].as_str().map(String::from),
             }

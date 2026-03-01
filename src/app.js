@@ -47,6 +47,16 @@ async function invoke(cmd, args = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// C-02 compatibility: API amounts are now decimal strings ("1000.50000000").
+// parseAura() safely converts both string and number to a JS float.
+// ---------------------------------------------------------------------------
+
+function parseAura(val) {
+  if (val === null || val === undefined) return 0;
+  return typeof val === 'string' ? parseFloat(val) : (val || 0);
+}
+
+// ---------------------------------------------------------------------------
 // App state
 // ---------------------------------------------------------------------------
 
@@ -209,7 +219,7 @@ function fillStats(result) {
   document.getElementById('stat-height').textContent     = result.block_height ?? '—';
   document.getElementById('stat-peers').textContent      = result.peer_count ?? '—';
   document.getElementById('stat-validators').textContent = result.validator_count ?? '—';
-  document.getElementById('stat-supply').textContent     = fmt(result.total_supply);
+  document.getElementById('stat-supply').textContent     = fmt(parseAura(result.total_supply));
   document.getElementById('stat-chainid').textContent    = result.chain_id ?? '—';
   document.getElementById('stat-version').textContent    = result.version ?? '—';
 }
@@ -219,7 +229,7 @@ function fillStatsFromRpc(data) {
   document.getElementById('stat-height').textContent     = data.chain_height ?? data.block_height ?? data.height ?? '—';
   document.getElementById('stat-peers').textContent      = data.peer_count ?? data.peers ?? '—';
   document.getElementById('stat-validators').textContent = data.active_validators ?? data.validator_count ?? '—';
-  document.getElementById('stat-supply').textContent     = fmt(data.total_supply);
+  document.getElementById('stat-supply').textContent     = fmt(parseAura(data.total_supply));
   document.getElementById('stat-chainid').textContent    = data.chain_id ?? '—';
   document.getElementById('stat-version').textContent    = data.version ?? '—';
 }
@@ -356,14 +366,14 @@ async function refreshBalance() {
   if (!State.wallet) return;
   try {
     const data = await rpcFetch(`/accounts/${State.wallet.address}/balance`);
-    document.getElementById('w-balance').textContent = `${fmt(data.balance ?? data)} AURA`;
+    document.getElementById('w-balance').textContent = `${fmt(parseAura(data.balance ?? data))} AURA`;
     try {
       const nd = await rpcFetch(`/accounts/${State.wallet.address}/nonce`);
       document.getElementById('w-nonce').textContent = nd.nonce ?? nd ?? '0';
     } catch (_) {}
     try {
       const vd = await rpcFetch(`/validators/${State.wallet.address}`);
-      const stake = vd.stake ?? vd.staked_amount ?? 0;
+      const stake = parseAura(vd.stake ?? vd.staked_amount ?? 0);
       const stakedEl = document.getElementById('w-staked');
       if (stake > 0) {
         stakedEl.textContent = `${fmt(stake)} AURA${vd.is_active ? ' ✓ active validator' : ''}`;
@@ -407,7 +417,7 @@ async function refreshTxHistory() {
       return `<div class="tx-row">
         <span class="tx-dir ${dir}">${label}</span>
         <span class="tx-addr" title="${counterparty}">${shortAddr}</span>
-        <span class="tx-amount ${dir}">${sign}${fmt(tx.amount)} AURA</span>
+        <span class="tx-amount ${dir}">${sign}${fmt(parseAura(tx.amount))} AURA</span>
         <span class="tx-block">${block}</span>
       </div>`;
     }).join('');
@@ -616,7 +626,7 @@ async function refreshExplorer() {
       const hash      = block.hash ?? block.block_hash ?? '—';
       const validator = block.validator ?? block.produced_by ?? '—';
       const txCount   = Array.isArray(block.transactions) ? block.transactions.length : (block.tx_count ?? '?');
-      const reward    = block.reward ?? block.block_reward ?? '—';
+      const reward    = parseAura(block.reward ?? block.block_reward ?? null);
       const ts        = block.timestamp ? new Date(block.timestamp * 1000).toLocaleTimeString() : '—';
 
       tr.innerHTML = `
@@ -760,7 +770,7 @@ async function refreshFaucetBalance() {
   try {
     const data = await rpcFetch('/faucet');
     const balanceInfo = document.getElementById('faucet-balance-info');
-    balanceInfo.textContent = `Available: ${fmt(data.balance || 0)} AURA\nNext replenish: ${data.next_replenish || 'Unknown'}`;
+    balanceInfo.textContent = `Available: ${fmt(parseAura(data.balance))} AURA\nNext replenish: ${data.next_replenish || 'Unknown'}`;
   } catch (_) {
     document.getElementById('faucet-balance-info').textContent = 'Unable to load faucet info';
   }
@@ -820,7 +830,7 @@ async function refreshValidators() {
     validators.forEach(v => {
       const tr = document.createElement('tr');
       const addr     = v.address ?? v.id ?? '—';
-      const stake    = fmt(v.stake ?? v.total_stake ?? 0);
+      const stake    = fmt(parseAura(v.stake ?? v.total_stake ?? 0));
       const produced = v.blocks_produced ?? v.blocks ?? '—';
       const rep      = v.reputation_score ?? v.reputation ?? '—';
       const jailed   = v.is_jailed || v.jailed ? 'Yes' : 'No';
@@ -999,7 +1009,7 @@ function initStakingTab() {
     // Check balance: must have amount + fee available
     try {
       var balData = await rpcFetch("/accounts/" + State.wallet.address + "/balance");
-      var bal = balData.balance ?? balData ?? 0;
+      var bal = parseAura(balData.balance ?? balData ?? 0);
       if (bal < amount + fee) {
         showTabError("stake-error", "Insufficient balance: need " + (amount + fee).toFixed(8) + " AURA (you have " + bal.toFixed(8) + ")");
         return;
